@@ -694,8 +694,8 @@ const useAgent = createStep({
   execute: async ({ inputData, mastra }) => {
     const logger = mastra?.getLogger();
     const prompt = inputData.messageType === "message"
-      ? `Пользователь написал: "${inputData.message}"`
-      : `Пользователь нажал: ${inputData.callbackData}`;
+      ? `Пользователь написал: "${inputData.message}"\n\nKONTEXT: chatId=${inputData.chatId}, userId=${inputData.userId}, userName=${inputData.userName || ''}, firstName=${inputData.firstName || ''}, lastName=${inputData.lastName || ''}`
+      : `Пользователь нажал: ${inputData.callbackData}\n\nKONTEXT: chatId=${inputData.chatId}, userId=${inputData.userId}`;
 
     logger?.info("🤖 [useAgent] Starting agent generation", {
       threadId: inputData.threadId,
