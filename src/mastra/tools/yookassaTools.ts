@@ -23,10 +23,7 @@ export const createYooKassaPayment = createTool({
   
   inputSchema: z.object({
     amount: z.number().describe("Payment amount in rubles (will be converted to kopecks)"),
-    currency: z.string().default("RUB").describe("Currency code (default: RUB)"),
     description: z.string().describe("Payment description"),
-    returnUrl: z.string().optional().describe("URL to redirect user after payment"),
-    metadata: z.record(z.string()).optional().describe("Additional metadata to store with payment"),
   }),
 
   outputSchema: z.object({
@@ -70,15 +67,15 @@ export const createYooKassaPayment = createTool({
       const paymentData = {
         amount: {
           value: (amountInKopecks / 100).toFixed(2),
-          currency: context.currency,
+          currency: "RUB",
         },
         confirmation: {
           type: "redirect",
-          return_url: context.returnUrl || "https://example.com/success",
+          return_url: "https://example.com/success",
         },
         capture: true,
         description: context.description,
-        metadata: context.metadata || {},
+        metadata: {},
       };
 
       logger?.info("📝 [createYooKassaPayment] Payment data", paymentData);
