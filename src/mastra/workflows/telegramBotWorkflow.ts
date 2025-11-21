@@ -90,7 +90,7 @@ const routeAction = createStep({
     messageType: z.enum(["message", "callback_query"]),
   }),
   outputSchema: z.object({
-    action: z.enum(["create_order_detox", "create_order_modeling", "confirm_payment", "use_agent"]),
+    action: z.enum(["create_order_detox", "create_order_modeling", "confirm_payment", "show_admin_panel", "send_report", "use_agent"]),
     orderId: z.number().optional(),
     paymentId: z.string().optional(),
     dbUserId: z.number(),
@@ -106,9 +106,9 @@ const routeAction = createStep({
     callbackData: z.string().optional(),
     messageType: z.enum(["message", "callback_query"]),
   }),
-  execute: async ({ inputData, mastra }) => {
+  execute: async ({ inputData, mastra, runtimeContext }) => {
     const logger = mastra?.getLogger();
-    let action: "create_order_detox" | "create_order_modeling" | "confirm_payment" | "use_agent" = "use_agent";
+    let action: "create_order_detox" | "create_order_modeling" | "confirm_payment" | "show_admin_panel" | "send_report" | "use_agent" = "use_agent";
     let orderId: number | undefined;
     let paymentId: string | undefined;
 
@@ -118,7 +118,35 @@ const routeAction = createStep({
       message: inputData.message,
     });
 
-    if (inputData.messageType === "callback_query" && inputData.callbackData) {
+    // Проверяем является ли пользователь админом
+    const userResult = await getUserByTelegramIdTool.execute({
+      context: { telegramId: String(inputData.userId) },
+      runtimeContext,
+    });
+    const isAdmin = userResult.isAdmin === true;
+
+    // Admin commands
+    if (isAdmin) {
+      if (inputData.messageType === "message" && inputData.message === "/admin") {
+        action = "show_admin_panel";
+      } else if (inputData.messageType === "callback_query" && inputData.callbackData) {
+        const data = inputData.callbackData;
+        if (data.startsWith("send_report_")) {
+          // Формат: send_report_<orderId>
+          const match = data.match(/^send_report_(\d+)$/);
+          if (match && match[1]) {
+            const parsedOrderId = parseInt(match[1]);
+            if (!isNaN(parsedOrderId)) {
+              action = "send_report";
+              orderId = parsedOrderId;
+            }
+          }
+        }
+      }
+    }
+
+    // Regular user commands
+    if (action === "use_agent" && inputData.messageType === "callback_query" && inputData.callbackData) {
       const data = inputData.callbackData;
       if (data === "order_detox") {
         action = "create_order_detox";
@@ -168,43 +196,6 @@ const createDetoxOrder = createStep({
   execute: async ({ inputData, runtimeContext, mastra }) => {
     const logger = mastra?.getLogger();
     logger?.info("📦 Creating detox order");
-
-    // Проверяем активные заказы
-    const ordersResult = await getUserOrdersTool.execute({
-      context: { userId: inputData.dbUserId },
-      runtimeContext,
-    });
-
-    if (!ordersResult.success) {
-      logger?.error("❌ Failed to get user orders");
-      await sendTelegramMessage.execute({
-        context: {
-          chatId: inputData.chatId,
-          text: "❌ Не удалось проверить активные заказы. Попробуйте позже.",
-          inlineKeyboard: undefined,
-          parseMode: "Markdown",
-        },
-        runtimeContext,
-      });
-      return { success: false };
-    }
-
-    // Включаем "created" чтобы предотвратить duplicate orders если предыдущий workflow failed
-    const activeStatuses = ["created", "payment_pending", "payment_confirmed", "form_sent", "processing"];
-    const hasActive = ordersResult.orders?.some(o => activeStatuses.includes(o.status));
-
-    if (hasActive) {
-      await sendTelegramMessage.execute({
-        context: {
-          chatId: inputData.chatId,
-          text: "❌ У вас уже есть активный заказ.",
-          inlineKeyboard: undefined,
-          parseMode: "Markdown",
-        },
-        runtimeContext,
-      });
-      return { success: false };
-    }
 
     // TRANSACTIONAL APPROACH: Сначала YooKassa, затем atomic DB transaction
     logger?.info("🔐 Creating YooKassa payment first");
@@ -309,42 +300,6 @@ const createModelingOrder = createStep({
   execute: async ({ inputData, runtimeContext, mastra }) => {
     const logger = mastra?.getLogger();
     logger?.info("📦 Creating modeling order");
-
-    const ordersResult = await getUserOrdersTool.execute({
-      context: { userId: inputData.dbUserId },
-      runtimeContext,
-    });
-
-    if (!ordersResult.success) {
-      logger?.error("❌ Failed to get user orders");
-      await sendTelegramMessage.execute({
-        context: {
-          chatId: inputData.chatId,
-          text: "❌ Не удалось проверить активные заказы. Попробуйте позже.",
-          inlineKeyboard: undefined,
-          parseMode: "Markdown",
-        },
-        runtimeContext,
-      });
-      return { success: false };
-    }
-
-    // Включаем "created" чтобы предотвратить duplicate orders если предыдущий workflow failed
-    const activeStatuses = ["created", "payment_pending", "payment_confirmed", "form_sent", "processing"];
-    const hasActive = ordersResult.orders?.some(o => activeStatuses.includes(o.status));
-
-    if (hasActive) {
-      await sendTelegramMessage.execute({
-        context: {
-          chatId: inputData.chatId,
-          text: "❌ У вас уже есть активный заказ.",
-          inlineKeyboard: undefined,
-          parseMode: "Markdown",
-        },
-        runtimeContext,
-      });
-      return { success: false };
-    }
 
     // TRANSACTIONAL APPROACH: Сначала YooKassa, затем atomic DB transaction
     logger?.info("🔐 Creating YooKassa payment first");
@@ -699,7 +654,129 @@ const confirmPayment = createStep({
 });
 
 /**
- * Шаг 6: Fallback к агенту
+ * Шаг 6: Админ-панель - показ всех заявок
+ */
+const showAdminPanel = createStep({
+  id: "show-admin-panel",
+  inputSchema: z.object({
+    chatId: z.number(),
+  }).passthrough(),
+  outputSchema: z.object({ success: z.boolean() }),
+  execute: async ({ inputData, runtimeContext, mastra }) => {
+    const logger = mastra?.getLogger();
+    logger?.info("👨‍💼 [showAdminPanel] Showing admin panel");
+
+    // Получаем все pending orders
+    const ordersResult = await getPendingOrdersTool.execute({
+      context: {},
+      runtimeContext,
+      mastra,
+    });
+
+    if (!ordersResult.success || !ordersResult.orders) {
+      logger?.error("❌ Failed to get pending orders");
+      await sendTelegramMessage.execute({
+        context: {
+          chatId: inputData.chatId,
+          text: "❌ Не удалось получить список заявок.",
+          inlineKeyboard: undefined,
+          parseMode: "Markdown",
+        },
+        runtimeContext,
+      });
+      return { success: false };
+    }
+
+    if (ordersResult.orders.length === 0) {
+      await sendTelegramMessage.execute({
+        context: {
+          chatId: inputData.chatId,
+          text: "📋 Нет заявок, требующих обработки.",
+          inlineKeyboard: undefined,
+          parseMode: "Markdown",
+        },
+        runtimeContext,
+      });
+      return { success: true };
+    }
+
+    // Формируем сообщение со списком заявок
+    const ordersList = ordersResult.orders.map(order => {
+      const service = order.serviceType === "financial_detox" ? "💰 Детокс" : "📊 Моделирование";
+      const userName = order.userName || order.telegramId;
+      return `#${order.orderId} • ${service} • ${order.price}₽\n👤 @${userName}\n📅 ${new Date(order.createdAt).toLocaleString("ru-RU")}`;
+    }).join("\n\n");
+
+    // Формируем кнопки для отправки отчетов
+    const buttons = ordersResult.orders.map(order => [{
+      text: `📤 Отправить отчет #${order.orderId}`,
+      callback_data: `send_report_${order.orderId}`,
+    }]);
+
+    await sendTelegramMessage.execute({
+      context: {
+        chatId: inputData.chatId,
+        text: `👨‍💼 *АДМИН-ПАНЕЛЬ*\n\nЗаявки на обработку (${ordersResult.orders.length}):\n\n${ordersList}`,
+        inlineKeyboard: buttons,
+        parseMode: "Markdown",
+      },
+      runtimeContext,
+    });
+
+    return { success: true };
+  },
+});
+
+/**
+ * Шаг 7: Отправка отчета пользователю
+ */
+const sendReport = createStep({
+  id: "send-report",
+  inputSchema: z.object({
+    orderId: z.number(),
+    chatId: z.number(),
+  }).passthrough(),
+  outputSchema: z.object({ success: z.boolean() }),
+  execute: async ({ inputData, runtimeContext, mastra }) => {
+    const logger = mastra?.getLogger();
+    logger?.info("📤 [sendReport] Sending report", { orderId: inputData.orderId });
+
+    // Получаем информацию о заказе
+    const orderResult = await getOrderByIdTool.execute({
+      context: { orderId: inputData.orderId },
+      runtimeContext,
+    });
+
+    if (!orderResult.order) {
+      logger?.error("❌ Order not found", { orderId: inputData.orderId });
+      await sendTelegramMessage.execute({
+        context: {
+          chatId: inputData.chatId,
+          text: "❌ Заказ не найден.",
+          inlineKeyboard: undefined,
+          parseMode: "Markdown",
+        },
+        runtimeContext,
+      });
+      return { success: false };
+    }
+
+    await sendTelegramMessage.execute({
+      context: {
+        chatId: inputData.chatId,
+        text: `📤 Для отправки отчета пользователю:\n\n1. Загрузите PDF и/или Excel файлы отчета\n2. В подписи к файлу укажите: \`/send ${orderResult.order.userId}\`\n\nЗаказ #${inputData.orderId}\nПользователь ID: ${orderResult.order.userId}\nТип: ${orderResult.order.serviceType}\n\n_Отправьте файлы с подписью в этот чат_`,
+        inlineKeyboard: undefined,
+        parseMode: "Markdown",
+      },
+      runtimeContext,
+    });
+
+    return { success: true };
+  },
+});
+
+/**
+ * Шаг 8: Fallback к агенту
  */
 const useAgent = createStep({
   id: "use-agent",
@@ -730,7 +807,7 @@ const useAgent = createStep({
         {
           resourceId: "telegram-bot",
           threadId: inputData.threadId,
-          maxSteps: 10,
+          maxSteps: 3, // Ограничиваем для скорости (3-5 секунд)
         }
       );
 
@@ -775,6 +852,8 @@ export const telegramBotWorkflow = createWorkflow({
     [async ({ inputData }) => inputData.action === "create_order_detox", createDetoxOrder as any],
     [async ({ inputData }) => inputData.action === "create_order_modeling", createModelingOrder as any],
     [async ({ inputData }) => inputData.action === "confirm_payment", confirmPayment as any],
+    [async ({ inputData }) => inputData.action === "show_admin_panel", showAdminPanel as any],
+    [async ({ inputData }) => inputData.action === "send_report", sendReport as any],
     [async ({ inputData }) => inputData.action === "use_agent", useAgent as any],
   ] as any)
   .commit();

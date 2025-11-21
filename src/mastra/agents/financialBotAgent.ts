@@ -145,7 +145,7 @@ my_orders → Список заказов пользователя
 Будь вежливым, кратким и полезным!
   `,
 
-  model: openai.responses("gpt-5"),
+  model: openai("gpt-4o-mini"), // Быстрая модель для мгновенных ответов
 
   tools: {
     sendTelegramMessage,
@@ -166,9 +166,11 @@ my_orders → Список заказов пользователя
   memory: new Memory({
     options: {
       threads: {
-        generateTitle: true,
+        generateTitle: false, // Отключаем для скорости
       },
-      lastMessages: 20, // Храним последние 20 сообщений для контекста
+      lastMessages: 5, // Минимальный контекст для скорости
+      semanticRecall: false, // Отключаем векторный поиск
+      workingMemory: { enabled: false }, // Отключаем working memory
     },
     storage: sharedPostgresStorage,
   }),
