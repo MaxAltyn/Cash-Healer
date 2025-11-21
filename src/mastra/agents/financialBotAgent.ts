@@ -90,21 +90,61 @@ export const financialBotAgent = new Agent({
 
 ### 3. Создание заказа
 Когда пользователь выбирает услугу (callback_data начинается с "order_"):
-1. Получи userId через \`getUserByTelegramIdTool\`
-2. Создай заказ через \`createOrderTool\` (serviceType: "financial_detox" или "financial_modeling")
-3. Создай платеж через \`createYooKassaPayment\`
-4. Сохрани платеж в БД через \`createPaymentTool\`
-5. Обнови статус заказа на "payment_pending" через \`updateOrderStatusTool\`
-6. Отправь пользователю ссылку на оплату
+
+**ВАЖНО: ВЫПОЛНИ ВСЕ ШАГИ ПОСЛЕДОВАТЕЛЬНО, НЕ ОСТАНАВЛИВАЙСЯ НА ПОЛОВИНЕ!**
+
+**ПЕРЕД СОЗДАНИЕМ НОВОГО ЗАКАЗА:**
+1. Получи userId через \`getUserByTelegramIdTool\` (telegramId из входящих данных)
+2. Проверь существующие заказы через \`getUserOrdersTool\` (userId)
+3. ЕСЛИ есть заказ со статусом "payment_pending":
+   - НЕ создавай новый заказ!
+   - Напомни о существующем заказе
+   - Отправь ссылку на оплату из существующего заказа
+   - ОСТАНОВИ выполнение
+4. ЕСЛИ есть заказ со статусом "payment_confirmed" или "form_sent":
+   - НЕ создавай новый заказ!
+   - Напомни что заказ уже оплачен и обрабатывается
+   - ОСТАНОВИ выполнение
+
+**СОЗДАНИЕ НОВОГО ЗАКАЗА (только если нет активных заказов):**
+1. Получи userId (если ещё не получил)
+2. Создай заказ через \`createOrderTool\`:
+   - serviceType: "financial_detox" (для детокса) или "financial_modeling" (для моделирования)
+   - price: 450 (для детокса) или 350 (для моделирования)
+   - formUrl: "https://forms.yandex.ru/u/6912423849af471482e765d3" (только для детокса)
+   - **ЗАПОМНИ orderId из ответа!**
+3. Создай платеж через \`createYooKassaPayment\`:
+   - amount: 450 или 350
+   - description: "Оплата услуги: Финансовый детокс" или "Оплата услуги: Финансовое моделирование"
+   - **ЗАПОМНИ paymentId и paymentUrl из ответа!**
+4. Сохрани платеж в БД через \`createPaymentTool\`:
+   - orderId: orderId из шага 2
+   - amount: сумма
+   - yookassaPaymentId: paymentId из шага 3
+   - paymentUrl: paymentUrl из шага 3
+5. Обнови статус заказа на "payment_pending" через \`updateOrderStatusTool\`:
+   - orderId: orderId из шага 2
+   - status: "payment_pending"
+6. Отправь пользователю сообщение с:
+   - Подтверждением создания заказа
+   - Ссылкой на оплату (paymentUrl)
+   - Кнопкой "✅ Я оплатил" (callback_data: "check_payment_{orderId}_{paymentId}")
 
 ### 4. Проверка оплаты
-Когда пользователь сообщает об оплате или нажимает "Я оплатил":
-1. Проверь статус через \`checkYooKassaPayment\`
-2. Если оплачено:
-   - Обнови статус заказа на "payment_confirmed"
-   - Отправь ссылку на Яндекс.Форму (для детокса)
+Когда пользователь нажимает "Я оплатил" (callback_data начинается с "check_payment_"):
+
+**ТЕСТОВЫЙ РЕЖИМ: Все платежи автоматически подтверждаются как успешные!**
+
+1. Извлеки orderId и paymentId из callback_data
+2. Проверь статус через \`checkYooKassaPayment\` (paymentId)
+3. Обнови статус заказа на "payment_confirmed" через \`updateOrderStatusTool\`
+4. ДЛЯ ДЕТОКСА:
+   - Отправь ссылку на Яндекс.Форму: https://forms.yandex.ru/u/6912423849af471482e765d3
    - Обнови статус на "form_sent"
-   - Уведоми администратора о новом заказе
+   - Напиши: "После заполнения формы исполнитель подготовит твой отчет"
+5. ДЛЯ МОДЕЛИРОВАНИЯ:
+   - Обнови статус на "completed"
+   - Отправь инструкции по использованию алгоритма
 
 ### 5. Отправка документов (только для администраторов)
 Используй \`sendTelegramDocument\` для отправки PDF и Excel файлов пользователю
