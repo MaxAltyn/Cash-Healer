@@ -125,13 +125,15 @@ const routeAction = createStep({
       } else if (data === "order_modeling") {
         action = "create_order_modeling";
       } else if (data.startsWith("payment_")) {
-        const parts = data.split("_");
-        if (parts.length === 3 && parts[1] && parts[2]) {
-          const parsedOrderId = parseInt(parts[1]);
+        // Формат: payment_<orderId>_<paymentId>
+        // Payment ID может содержать подчёркивания, поэтому берем все части после первого underscore после orderId
+        const match = data.match(/^payment_(\d+)_(.+)$/);
+        if (match && match[1] && match[2]) {
+          const parsedOrderId = parseInt(match[1]);
           if (!isNaN(parsedOrderId)) {
             action = "confirm_payment";
             orderId = parsedOrderId;
-            paymentId = parts[2];
+            paymentId = match[2];
           }
         }
       }
@@ -520,6 +522,7 @@ const confirmPayment = createStep({
     const paymentStatus = await checkYooKassaPayment.execute({
       context: { paymentId: inputData.paymentId },
       runtimeContext,
+      mastra,
     });
 
     if (!paymentStatus.paid) {
