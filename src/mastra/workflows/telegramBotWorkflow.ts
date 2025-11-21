@@ -213,10 +213,20 @@ const createDetoxOrder = createStep({
         description: "Оплата: Финансовый детокс",
       },
       runtimeContext,
+      mastra,
+    });
+
+    logger?.info("📊 YooKassa result received", {
+      success: yookassaResult.success,
+      paymentId: yookassaResult.paymentId,
+      paymentUrl: yookassaResult.paymentUrl,
+      error: yookassaResult.error,
     });
 
     if (!yookassaResult.success || !yookassaResult.paymentId || !yookassaResult.paymentUrl) {
-      logger?.error("❌ YooKassa payment creation failed");
+      logger?.error("❌ YooKassa payment creation failed", {
+        error: yookassaResult.error,
+      });
       await sendTelegramMessage.execute({
         context: {
           chatId: inputData.chatId,
@@ -343,6 +353,14 @@ const createModelingOrder = createStep({
         description: "Оплата: Финансовое моделирование",
       },
       runtimeContext,
+      mastra,
+    });
+
+    logger?.info("📊 YooKassa result received", {
+      success: yookassaResult.success,
+      paymentId: yookassaResult.paymentId,
+      paymentUrl: yookassaResult.paymentUrl,
+      error: yookassaResult.error,
     });
 
     if (!yookassaResult.success || !yookassaResult.paymentId || !yookassaResult.paymentUrl) {

@@ -77,19 +77,6 @@ export const mastra = new Mastra({
   agents: {
     financialBotAgent,
   },
-  // Register your tools here
-  tools: {
-    sendTelegramMessage,
-    createYooKassaPayment,
-    checkYooKassaPayment,
-    createOrUpdateUserTool,
-    getUserByTelegramIdTool,
-    getUserOrdersTool,
-    getOrderByIdTool,
-    updateOrderStatusTool,
-    createOrderWithPaymentTransactionTool,
-    getPendingOrdersTool,
-  },
   mcpServers: {
     allTools: new MCPServer({
       name: "allTools",
