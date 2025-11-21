@@ -49,7 +49,28 @@ export function registerTelegramTrigger({
           // Handle callback queries (button clicks)
           if (payload.callback_query) {
             const callbackQuery = payload.callback_query;
-            await handler(mastra, {
+            
+            // IMPORTANT: Answer callback query immediately to prevent Telegram timeout
+            // Telegram requires response within 10 seconds
+            const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
+            try {
+              await fetch(
+                `https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    callback_query_id: callbackQuery.id,
+                  }),
+                }
+              );
+              logger?.info("✅ [Telegram] Callback query answered");
+            } catch (error) {
+              logger?.error("❌ [Telegram] Failed to answer callback query", { error });
+            }
+            
+            // Process the callback query asynchronously (don't wait)
+            handler(mastra, {
               type: "telegram/callback_query",
               params: {
                 chatId: callbackQuery.message.chat.id,
@@ -62,6 +83,8 @@ export function registerTelegramTrigger({
                 callbackData: callbackQuery.data,
               },
               payload,
+            }).catch((error) => {
+              logger?.error("❌ [Telegram] Error handling callback query", { error });
             });
           }
           // Handle regular messages

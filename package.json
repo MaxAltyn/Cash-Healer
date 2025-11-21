@@ -40,6 +40,7 @@
     "inngest": "^3.40.2",
     "inngest-cli": "^1.11.5",
     "node-telegram-bot-api": "^0.66.0",
+    "openai": "^6.9.1",
     "pino": "^9.9.4",
     "tsx": "^4.20.3",
     "zod": "^3.25.76"

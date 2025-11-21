@@ -9,8 +9,9 @@ import { z } from "zod";
 
 import { sharedPostgresStorage } from "./storage";
 import { inngest, inngestServe } from "./inngest";
-import { exampleWorkflow } from "./workflows/exampleWorkflow"; // Replace with your own workflow
-import { exampleAgent } from "./agents/exampleAgent"; // Replace with your own agent
+import { telegramBotWorkflow } from "./workflows/telegramBotWorkflow";
+import { financialBotAgent } from "./agents/financialBotAgent";
+import { registerTelegramTrigger } from "../triggers/telegramTriggers";
 
 class ProductionPinoLogger extends MastraLogger {
   protected logger: pino.Logger;
@@ -56,9 +57,13 @@ class ProductionPinoLogger extends MastraLogger {
 export const mastra = new Mastra({
   storage: sharedPostgresStorage,
   // Register your workflows here
-  workflows: {},
+  workflows: {
+    telegramBotWorkflow,
+  },
   // Register your agents here
-  agents: {},
+  agents: {
+    financialBotAgent,
+  },
   mcpServers: {
     allTools: new MCPServer({
       name: "allTools",
@@ -204,10 +209,59 @@ export const mastra = new Mastra({
       //
       // ======================================================================
 
-      // Add more connector triggers below using the same pattern
-      // ...registerGithubTrigger({ ... }),
-      // ...registerSlackTrigger({ ... }),
-      // ...registerStripeWebhook({ ... }),
+      // ======================================================================
+      // TELEGRAM BOT WEBHOOK
+      // ======================================================================
+      ...registerTelegramTrigger({
+        triggerType: "telegram/message",
+        handler: async (mastra, triggerInfo) => {
+          const logger = mastra.getLogger();
+          logger?.info("🎯 [Telegram Trigger] Processing message", {
+            chatId: triggerInfo.params.chatId,
+            userId: triggerInfo.params.userId,
+            type: triggerInfo.type,
+          });
+
+          // Create unique thread ID for each user
+          const threadId = `telegram-user-${triggerInfo.params.userId}`;
+
+          // Determine message type
+          const messageType = triggerInfo.type === "telegram/callback_query" 
+            ? "callback_query" 
+            : "message";
+
+          // Start the workflow
+          try {
+            const run = await telegramBotWorkflow.createRunAsync();
+            const result = await run.start({
+              inputData: {
+                threadId,
+                chatId: triggerInfo.params.chatId,
+                userId: triggerInfo.params.userId,
+                userName: triggerInfo.params.userName,
+                firstName: triggerInfo.params.firstName,
+                lastName: triggerInfo.params.lastName,
+                message: triggerInfo.params.message,
+                messageId: triggerInfo.params.messageId,
+                callbackQueryId: triggerInfo.params.callbackQueryId,
+                callbackData: triggerInfo.params.callbackData,
+                messageType,
+              },
+            });
+
+            logger?.info("✅ [Telegram Trigger] Workflow completed", {
+              status: result.status,
+              chatId: triggerInfo.params.chatId,
+            });
+          } catch (error: any) {
+            logger?.error("❌ [Telegram Trigger] Workflow failed", {
+              error: error.message,
+              stack: error.stack,
+              chatId: triggerInfo.params.chatId,
+            });
+          }
+        },
+      }),
     ],
   },
   logger:
