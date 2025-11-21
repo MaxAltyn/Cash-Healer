@@ -106,10 +106,17 @@ const routeAction = createStep({
     callbackData: z.string().optional(),
     messageType: z.enum(["message", "callback_query"]),
   }),
-  execute: async ({ inputData }) => {
+  execute: async ({ inputData, mastra }) => {
+    const logger = mastra?.getLogger();
     let action: "create_order_detox" | "create_order_modeling" | "confirm_payment" | "use_agent" = "use_agent";
     let orderId: number | undefined;
     let paymentId: string | undefined;
+
+    logger?.info("🔀 [routeAction] Determining action", {
+      messageType: inputData.messageType,
+      callbackData: inputData.callbackData,
+      message: inputData.message,
+    });
 
     if (inputData.messageType === "callback_query" && inputData.callbackData) {
       const data = inputData.callbackData;
@@ -129,6 +136,12 @@ const routeAction = createStep({
         }
       }
     }
+
+    logger?.info("✅ [routeAction] Action determined", {
+      action,
+      orderId,
+      paymentId,
+    });
 
     return {
       action,
