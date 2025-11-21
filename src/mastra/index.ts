@@ -13,6 +13,19 @@ import { telegramBotWorkflow } from "./workflows/telegramBotWorkflow";
 import { financialBotAgent } from "./agents/financialBotAgent";
 import { registerTelegramTrigger } from "../triggers/telegramTriggers";
 
+// Import tools
+import { sendTelegramMessage } from "./tools/telegramTools";
+import { createYooKassaPayment, checkYooKassaPayment } from "./tools/yookassaTools";
+import {
+  createOrUpdateUserTool,
+  getUserByTelegramIdTool,
+  getUserOrdersTool,
+  getOrderByIdTool,
+  updateOrderStatusTool,
+  createOrderWithPaymentTransactionTool,
+  getPendingOrdersTool,
+} from "./tools/databaseTools";
+
 class ProductionPinoLogger extends MastraLogger {
   protected logger: pino.Logger;
 
@@ -63,6 +76,19 @@ export const mastra = new Mastra({
   // Register your agents here
   agents: {
     financialBotAgent,
+  },
+  // Register your tools here
+  tools: {
+    sendTelegramMessage,
+    createYooKassaPayment,
+    checkYooKassaPayment,
+    createOrUpdateUserTool,
+    getUserByTelegramIdTool,
+    getUserOrdersTool,
+    getOrderByIdTool,
+    updateOrderStatusTool,
+    createOrderWithPaymentTransactionTool,
+    getPendingOrdersTool,
   },
   mcpServers: {
     allTools: new MCPServer({
