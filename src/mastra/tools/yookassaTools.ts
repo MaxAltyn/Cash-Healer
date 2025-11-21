@@ -40,21 +40,16 @@ export const createYooKassaPayment = createTool({
       amount: context.amount,
       description: context.description,
       testMode: YOOKASSA_TEST_MODE,
+      shopId: YOOKASSA_SHOP_ID,
     });
 
     try {
-      // ТЕСТОВЫЙ РЕЖИМ: Имитация платежа
-      if (YOOKASSA_TEST_MODE) {
-        const testPaymentId = `test_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-        logger?.info("🧪 [createYooKassaPayment] TEST MODE - Simulating payment creation", {
-          paymentId: testPaymentId,
-        });
-        
+      // Проверяем наличие credentials
+      if (!YOOKASSA_SHOP_ID || !YOOKASSA_SECRET_KEY) {
+        logger?.error("❌ [createYooKassaPayment] Missing YooKassa credentials");
         return {
-          success: true,
-          paymentId: testPaymentId,
-          paymentUrl: `https://test.yookassa.ru/payments/${testPaymentId}`,
-          status: "pending",
+          success: false,
+          error: "YooKassa credentials not configured",
         };
       }
 
@@ -71,11 +66,11 @@ export const createYooKassaPayment = createTool({
         },
         confirmation: {
           type: "redirect",
-          return_url: "https://example.com/success",
+          return_url: "https://t.me/CashHealer_bot",
         },
         capture: true,
         description: context.description,
-        metadata: {},
+        test: YOOKASSA_TEST_MODE,
       };
 
       logger?.info("📝 [createYooKassaPayment] Payment data", paymentData);
@@ -153,17 +148,12 @@ export const checkYooKassaPayment = createTool({
     });
 
     try {
-      // ТЕСТОВЫЙ РЕЖИМ: Автоматически считаем платеж успешным
-      if (YOOKASSA_TEST_MODE || context.paymentId.startsWith("test_")) {
-        logger?.info("🧪 [checkYooKassaPayment] TEST MODE - Auto-confirming payment", {
-          paymentId: context.paymentId,
-        });
-        
+      // Проверяем наличие credentials
+      if (!YOOKASSA_SHOP_ID || !YOOKASSA_SECRET_KEY) {
+        logger?.error("❌ [checkYooKassaPayment] Missing YooKassa credentials");
         return {
-          success: true,
-          status: "succeeded",
-          paid: true,
-          amount: 450, // Тестовая сумма
+          success: false,
+          error: "YooKassa credentials not configured",
         };
       }
 
