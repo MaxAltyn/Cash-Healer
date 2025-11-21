@@ -10,6 +10,7 @@ import {
   getOrderById,
   getUserByTelegramId,
   getPendingOrders,
+  getPaymentByOrderId,
 } from "../../../server/storage";
 import type { ServiceType, OrderStatus, PaymentStatus } from "../../../shared/schema";
 
@@ -288,6 +289,76 @@ export const getUserOrdersTool = createTool({
       };
     } catch (error: any) {
       logger?.error("❌ [getUserOrdersTool] Error", { error });
+      return {
+        success: false,
+        error: error.message || "Unknown error",
+      };
+    }
+  },
+});
+
+/**
+ * Инструмент для получения заказа по ID
+ */
+export const getOrderByIdTool = createTool({
+  id: "get-order-by-id",
+  description:
+    "Get order information by order ID. Use this to check order details like service type, status, and form URL.",
+  
+  inputSchema: z.object({
+    orderId: z.number().describe("Order ID to retrieve"),
+  }),
+
+  outputSchema: z.object({
+    success: z.boolean(),
+    order: z
+      .object({
+        orderId: z.number(),
+        serviceType: z.string(),
+        status: z.string(),
+        price: z.number(),
+        formUrl: z.string().optional(),
+        createdAt: z.string(),
+      })
+      .optional(),
+    error: z.string().optional(),
+  }),
+
+  execute: async ({ context, mastra }) => {
+    const logger = mastra?.getLogger();
+    logger?.info("🔍 [getOrderByIdTool] Getting order", {
+      orderId: context.orderId,
+    });
+
+    try {
+      const order = await getOrderById(context.orderId);
+
+      if (!order) {
+        logger?.warn("❌ [getOrderByIdTool] Order not found");
+        return {
+          success: false,
+          error: "Order not found",
+        };
+      }
+
+      logger?.info("✅ [getOrderByIdTool] Order retrieved", {
+        orderId: order.id,
+        serviceType: order.serviceType,
+      });
+
+      return {
+        success: true,
+        order: {
+          orderId: order.id,
+          serviceType: order.serviceType,
+          status: order.status,
+          price: order.price / 100,
+          formUrl: order.formUrl || undefined,
+          createdAt: order.createdAt.toISOString(),
+        },
+      };
+    } catch (error: any) {
+      logger?.error("❌ [getOrderByIdTool] Error", { error });
       return {
         success: false,
         error: error.message || "Unknown error",

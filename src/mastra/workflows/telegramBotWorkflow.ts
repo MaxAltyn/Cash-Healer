@@ -1,177 +1,759 @@
 import { createStep, createWorkflow } from "../inngest";
 import { z } from "zod";
 import { financialBotAgent } from "../agents/financialBotAgent";
+import {
+  createOrUpdateUserTool,
+  getUserByTelegramIdTool,
+  getUserOrdersTool,
+  createOrderTool,
+  updateOrderStatusTool,
+  createPaymentTool,
+  getOrderByIdTool,
+} from "../tools/databaseTools";
+import { sendTelegramMessage } from "../tools/telegramTools";
+import { createYooKassaPayment, checkYooKassaPayment } from "../tools/yookassaTools";
 
 /**
- * Шаг: Обработка входящего сообщения или callback query через агента
+ * Шаг 1: Создание/обновление пользователя
  */
-const processMessageWithAgent = createStep({
-  id: "process-message-with-agent",
-  description:
-    "Processes incoming Telegram messages and callback queries using the Financial Bot Agent with AI-powered conversation handling",
-
+const ensureUser = createStep({
+  id: "ensure-user",
   inputSchema: z.object({
-    threadId: z.string().describe("Unique thread ID for conversation tracking"),
-    chatId: z.number().describe("Telegram chat ID"),
-    userId: z.number().describe("Telegram user ID"),
-    userName: z.string().optional().describe("Telegram username"),
-    firstName: z.string().optional().describe("User's first name"),
-    lastName: z.string().optional().describe("User's last name"),
-    message: z.string().optional().describe("User's text message"),
-    messageId: z.number().optional().describe("Telegram message ID"),
-    callbackQueryId: z.string().optional().describe("Callback query ID for button clicks"),
-    callbackData: z.string().optional().describe("Data from button click"),
-    messageType: z
-      .enum(["message", "callback_query"])
-      .describe("Type of incoming update"),
+    threadId: z.string(),
+    chatId: z.number(),
+    userId: z.number(),
+    userName: z.string().optional(),
+    firstName: z.string().optional(),
+    lastName: z.string().optional(),
+    message: z.string().optional(),
+    messageId: z.number().optional(),
+    callbackQueryId: z.string().optional(),
+    callbackData: z.string().optional(),
+    messageType: z.enum(["message", "callback_query"]),
   }),
-
   outputSchema: z.object({
-    success: z.boolean(),
-    response: z.string(),
-    error: z.string().optional(),
+    dbUserId: z.number(),
+    threadId: z.string(),
+    chatId: z.number(),
+    userId: z.number(),
+    userName: z.string().optional(),
+    firstName: z.string().optional(),
+    lastName: z.string().optional(),
+    message: z.string().optional(),
+    messageId: z.number().optional(),
+    callbackQueryId: z.string().optional(),
+    callbackData: z.string().optional(),
+    messageType: z.enum(["message", "callback_query"]),
   }),
-
-  execute: async ({ inputData, mastra }) => {
+  execute: async ({ inputData, runtimeContext, mastra }) => {
     const logger = mastra?.getLogger();
-    logger?.info("🤖 [processMessageWithAgent] Processing with AI agent", {
-      threadId: inputData.threadId,
-      chatId: inputData.chatId,
-      messageType: inputData.messageType,
+    const result = await createOrUpdateUserTool.execute({
+      context: {
+        telegramId: String(inputData.userId),
+        username: inputData.userName,
+        firstName: inputData.firstName,
+        lastName: inputData.lastName,
+      },
+      runtimeContext,
+    });
+    
+    if (!result.success || !result.userId) {
+      logger?.error("❌ Failed to create/update user", { error: result.error });
+      throw new Error(`Failed to create user: ${result.error || "Unknown error"}`);
+    }
+    
+    return { 
+      dbUserId: result.userId,
+      ...inputData,
+    };
+  },
+});
+
+/**
+ * Шаг 2: Определение действия
+ */
+const routeAction = createStep({
+  id: "route-action",
+  inputSchema: z.object({
+    dbUserId: z.number(),
+    threadId: z.string(),
+    chatId: z.number(),
+    userId: z.number(),
+    userName: z.string().optional(),
+    firstName: z.string().optional(),
+    lastName: z.string().optional(),
+    message: z.string().optional(),
+    messageId: z.number().optional(),
+    callbackQueryId: z.string().optional(),
+    callbackData: z.string().optional(),
+    messageType: z.enum(["message", "callback_query"]),
+  }),
+  outputSchema: z.object({
+    action: z.enum(["create_order_detox", "create_order_modeling", "confirm_payment", "use_agent"]),
+    orderId: z.number().optional(),
+    paymentId: z.string().optional(),
+    dbUserId: z.number(),
+    threadId: z.string(),
+    chatId: z.number(),
+    userId: z.number(),
+    userName: z.string().optional(),
+    firstName: z.string().optional(),
+    lastName: z.string().optional(),
+    message: z.string().optional(),
+    messageId: z.number().optional(),
+    callbackQueryId: z.string().optional(),
+    callbackData: z.string().optional(),
+    messageType: z.enum(["message", "callback_query"]),
+  }),
+  execute: async ({ inputData }) => {
+    let action: "create_order_detox" | "create_order_modeling" | "confirm_payment" | "use_agent" = "use_agent";
+    let orderId: number | undefined;
+    let paymentId: string | undefined;
+
+    if (inputData.messageType === "callback_query" && inputData.callbackData) {
+      const data = inputData.callbackData;
+      if (data === "order_detox") {
+        action = "create_order_detox";
+      } else if (data === "order_modeling") {
+        action = "create_order_modeling";
+      } else if (data.startsWith("payment_")) {
+        const parts = data.split("_");
+        if (parts.length === 3 && parts[1] && parts[2]) {
+          const parsedOrderId = parseInt(parts[1]);
+          if (!isNaN(parsedOrderId)) {
+            action = "confirm_payment";
+            orderId = parsedOrderId;
+            paymentId = parts[2];
+          }
+        }
+      }
+    }
+
+    return {
+      action,
+      orderId,
+      paymentId,
+      ...inputData,
+    };
+  },
+});
+
+/**
+ * Шаг 3: Создание заказа для детокса
+ */
+const createDetoxOrder = createStep({
+  id: "create-detox-order",
+  inputSchema: z.object({
+    dbUserId: z.number(),
+    chatId: z.number(),
+    userId: z.number(),
+  }).passthrough(),
+  outputSchema: z.object({ success: z.boolean() }),
+  execute: async ({ inputData, runtimeContext, mastra }) => {
+    const logger = mastra?.getLogger();
+    logger?.info("📦 Creating detox order");
+
+    // Проверяем активные заказы
+    const ordersResult = await getUserOrdersTool.execute({
+      context: { userId: inputData.dbUserId },
+      runtimeContext,
     });
 
+    if (!ordersResult.success) {
+      logger?.error("❌ Failed to get user orders");
+      await sendTelegramMessage.execute({
+        context: {
+          chatId: inputData.chatId,
+          text: "❌ Не удалось проверить активные заказы. Попробуйте позже.",
+          inlineKeyboard: undefined,
+          parseMode: "Markdown",
+        },
+        runtimeContext,
+      });
+      return { success: false };
+    }
+
+    // Включаем "created" чтобы предотвратить duplicate orders если предыдущий workflow failed
+    const activeStatuses = ["created", "payment_pending", "payment_confirmed", "form_sent", "processing"];
+    const hasActive = ordersResult.orders?.some(o => activeStatuses.includes(o.status));
+
+    if (hasActive) {
+      await sendTelegramMessage.execute({
+        context: {
+          chatId: inputData.chatId,
+          text: "❌ У вас уже есть активный заказ.",
+          inlineKeyboard: undefined,
+          parseMode: "Markdown",
+        },
+        runtimeContext,
+      });
+      return { success: false };
+    }
+
+    const telegramId = String(inputData.userId);
+
+    // Создаём заказ
+    const orderResult = await createOrderTool.execute({
+      context: {
+        userId: inputData.dbUserId,
+        serviceType: "financial_detox",
+        price: 450,
+        formUrl: "https://forms.yandex.ru/u/6912423849af471482e765d3",
+      },
+      runtimeContext,
+    });
+
+    if (!orderResult.success || !orderResult.orderId) {
+      logger?.error("❌ Failed to create order");
+      await sendTelegramMessage.execute({
+        context: {
+          chatId: inputData.chatId,
+          text: "❌ Не удалось создать заказ. Попробуйте позже.",
+          inlineKeyboard: undefined,
+          parseMode: "Markdown",
+        },
+        runtimeContext,
+      });
+      return { success: false };
+    }
+
+    // Создаём платёж
+    const paymentResult = await createYooKassaPayment.execute({
+      context: {
+        amount: 450,
+        description: "Оплата: Финансовый детокс",
+      },
+      runtimeContext,
+    });
+
+    if (!paymentResult.success) {
+      logger?.error("❌ Failed to create payment");
+      await sendTelegramMessage.execute({
+        context: {
+          chatId: inputData.chatId,
+          text: "❌ Не удалось создать платёж. Попробуйте позже.",
+          inlineKeyboard: undefined,
+          parseMode: "Markdown",
+        },
+        runtimeContext,
+      });
+      return { success: false };
+    }
+
+    // Сохраняем платёж
+    const savePaymentResult = await createPaymentTool.execute({
+      context: {
+        orderId: orderResult.orderId,
+        amount: 450,
+        yookassaPaymentId: paymentResult.paymentId,
+        paymentUrl: paymentResult.paymentUrl,
+      },
+      runtimeContext,
+    });
+
+    if (!savePaymentResult.success) {
+      logger?.error("❌ Failed to save payment");
+      await sendTelegramMessage.execute({
+        context: {
+          chatId: inputData.chatId,
+          text: "❌ Не удалось сохранить платёж. Попробуйте позже.",
+          inlineKeyboard: undefined,
+          parseMode: "Markdown",
+        },
+        runtimeContext,
+      });
+      return { success: false };
+    }
+
+    // Обновляем статус
+    const statusResult = await updateOrderStatusTool.execute({
+      context: {
+        orderId: orderResult.orderId,
+        status: "payment_pending",
+      },
+      runtimeContext,
+    });
+
+    if (!statusResult.success) {
+      logger?.error("❌ Failed to update order status");
+      return { success: false };
+    }
+
+    // Отправляем сообщение
+    await sendTelegramMessage.execute({
+      context: {
+        chatId: inputData.chatId,
+        text: `💳 Заказ №${orderResult.orderId} создан!\n\nУслуга: Финансовый детокс\nСумма: 450₽\n\n👉 Оплатите:\n${paymentResult.paymentUrl}`,
+        inlineKeyboard: [[{
+          text: "✅ Я оплатил",
+          callback_data: `payment_${orderResult.orderId}_${paymentResult.paymentId}`,
+        }]],
+        parseMode: "Markdown",
+      },
+      runtimeContext,
+    });
+
+    return { success: true };
+  },
+});
+
+/**
+ * Шаг 4: Создание заказа для моделирования
+ */
+const createModelingOrder = createStep({
+  id: "create-modeling-order",
+  inputSchema: z.object({
+    dbUserId: z.number(),
+    chatId: z.number(),
+    userId: z.number(),
+  }).passthrough(),
+  outputSchema: z.object({ success: z.boolean() }),
+  execute: async ({ inputData, runtimeContext, mastra }) => {
+    const logger = mastra?.getLogger();
+    logger?.info("📦 Creating modeling order");
+
+    const ordersResult = await getUserOrdersTool.execute({
+      context: { userId: inputData.dbUserId },
+      runtimeContext,
+    });
+
+    if (!ordersResult.success) {
+      logger?.error("❌ Failed to get user orders");
+      await sendTelegramMessage.execute({
+        context: {
+          chatId: inputData.chatId,
+          text: "❌ Не удалось проверить активные заказы. Попробуйте позже.",
+          inlineKeyboard: undefined,
+          parseMode: "Markdown",
+        },
+        runtimeContext,
+      });
+      return { success: false };
+    }
+
+    // Включаем "created" чтобы предотвратить duplicate orders если предыдущий workflow failed
+    const activeStatuses = ["created", "payment_pending", "payment_confirmed", "form_sent", "processing"];
+    const hasActive = ordersResult.orders?.some(o => activeStatuses.includes(o.status));
+
+    if (hasActive) {
+      await sendTelegramMessage.execute({
+        context: {
+          chatId: inputData.chatId,
+          text: "❌ У вас уже есть активный заказ.",
+          inlineKeyboard: undefined,
+          parseMode: "Markdown",
+        },
+        runtimeContext,
+      });
+      return { success: false };
+    }
+
+    const orderResult = await createOrderTool.execute({
+      context: {
+        userId: inputData.dbUserId,
+        serviceType: "financial_modeling",
+        price: 350,
+        formUrl: null,
+      },
+      runtimeContext,
+    });
+
+    if (!orderResult.success || !orderResult.orderId) {
+      logger?.error("❌ Failed to create order");
+      await sendTelegramMessage.execute({
+        context: {
+          chatId: inputData.chatId,
+          text: "❌ Не удалось создать заказ. Попробуйте позже.",
+          inlineKeyboard: undefined,
+          parseMode: "Markdown",
+        },
+        runtimeContext,
+      });
+      return { success: false };
+    }
+
+    const paymentResult = await createYooKassaPayment.execute({
+      context: {
+        amount: 350,
+        description: "Оплата: Финансовое моделирование",
+      },
+      runtimeContext,
+    });
+
+    if (!paymentResult.success) {
+      logger?.error("❌ Failed to create payment");
+      await sendTelegramMessage.execute({
+        context: {
+          chatId: inputData.chatId,
+          text: "❌ Не удалось создать платёж. Попробуйте позже.",
+          inlineKeyboard: undefined,
+          parseMode: "Markdown",
+        },
+        runtimeContext,
+      });
+      return { success: false };
+    }
+
+    const savePaymentResult = await createPaymentTool.execute({
+      context: {
+        orderId: orderResult.orderId,
+        amount: 350,
+        yookassaPaymentId: paymentResult.paymentId,
+        paymentUrl: paymentResult.paymentUrl,
+      },
+      runtimeContext,
+    });
+
+    if (!savePaymentResult.success) {
+      logger?.error("❌ Failed to save payment");
+      await sendTelegramMessage.execute({
+        context: {
+          chatId: inputData.chatId,
+          text: "❌ Не удалось сохранить платёж. Попробуйте позже.",
+          inlineKeyboard: undefined,
+          parseMode: "Markdown",
+        },
+        runtimeContext,
+      });
+      return { success: false };
+    }
+
+    const statusResult = await updateOrderStatusTool.execute({
+      context: {
+        orderId: orderResult.orderId,
+        status: "payment_pending",
+      },
+      runtimeContext,
+    });
+
+    if (!statusResult.success) {
+      logger?.error("❌ Failed to update order status");
+      return { success: false };
+    }
+
+    await sendTelegramMessage.execute({
+      context: {
+        chatId: inputData.chatId,
+        text: `💳 Заказ №${orderResult.orderId} создан!\n\nУслуга: Финансовое моделирование\nСумма: 350₽\n\n👉 Оплатите:\n${paymentResult.paymentUrl}`,
+        inlineKeyboard: [[{
+          text: "✅ Я оплатил",
+          callback_data: `payment_${orderResult.orderId}_${paymentResult.paymentId}`,
+        }]],
+        parseMode: "Markdown",
+      },
+      runtimeContext,
+    });
+
+    return { success: true };
+  },
+});
+
+/**
+ * Шаг 5: Подтверждение оплаты
+ */
+const confirmPayment = createStep({
+  id: "confirm-payment",
+  inputSchema: z.object({
+    orderId: z.number(),
+    paymentId: z.string(),
+    chatId: z.number(),
+  }).passthrough(),
+  outputSchema: z.object({ success: z.boolean() }),
+  execute: async ({ inputData, runtimeContext, mastra }) => {
+    const logger = mastra?.getLogger();
+    logger?.info("💰 Confirming payment", { orderId: inputData.orderId, paymentId: inputData.paymentId });
+
+    // Проверяем что заказ существует
+    const orderResult = await getOrderByIdTool.execute({
+      context: { orderId: inputData.orderId },
+      runtimeContext,
+    });
+
+    if (!orderResult.order) {
+      logger?.warn("❌ Order not found", { orderId: inputData.orderId });
+      await sendTelegramMessage.execute({
+        context: {
+          chatId: inputData.chatId,
+          text: "❌ Заказ не найден.",
+          inlineKeyboard: undefined,
+          parseMode: "Markdown",
+        },
+        runtimeContext,
+      });
+      return { success: false };
+    }
+
+    // Получаем payment record для заказа
+    const { getPaymentByOrderId, updatePaymentStatus: dbUpdatePaymentStatus } = await import("../../../server/storage");
+    const payment = await getPaymentByOrderId(inputData.orderId);
+
+    if (!payment || !payment.yookassaPaymentId) {
+      logger?.warn("❌ Payment not found for order", { orderId: inputData.orderId });
+      await sendTelegramMessage.execute({
+        context: {
+          chatId: inputData.chatId,
+          text: "❌ Платёж для заказа не найден.",
+          inlineKeyboard: undefined,
+          parseMode: "Markdown",
+        },
+        runtimeContext,
+      });
+      return { success: false };
+    }
+
+    // Проверяем что paymentId из callback совпадает с сохранённым
+    if (payment.yookassaPaymentId !== inputData.paymentId) {
+      logger?.warn("❌ Payment ID mismatch", { 
+        expected: payment.yookassaPaymentId, 
+        received: inputData.paymentId 
+      });
+      await sendTelegramMessage.execute({
+        context: {
+          chatId: inputData.chatId,
+          text: "❌ Неверный платёж для этого заказа.",
+          inlineKeyboard: undefined,
+          parseMode: "Markdown",
+        },
+        runtimeContext,
+      });
+      return { success: false };
+    }
+
+    // Проверяем что платёж еще не был подтверждён (защита от replay)
+    if (payment.status === "succeeded") {
+      logger?.warn("⚠️ Payment already confirmed", { paymentId: payment.yookassaPaymentId });
+      await sendTelegramMessage.execute({
+        context: {
+          chatId: inputData.chatId,
+          text: "✅ Этот платёж уже был подтверждён ранее.",
+          inlineKeyboard: undefined,
+          parseMode: "Markdown",
+        },
+        runtimeContext,
+      });
+      return { success: false };
+    }
+
+    // Проверяем статус платежа в YooKassa
+    const paymentStatus = await checkYooKassaPayment.execute({
+      context: { paymentId: inputData.paymentId },
+      runtimeContext,
+    });
+
+    if (!paymentStatus.paid) {
+      logger?.info("⏳ Payment not yet confirmed", { paymentId: inputData.paymentId });
+      await sendTelegramMessage.execute({
+        context: {
+          chatId: inputData.chatId,
+          text: "❌ Оплата ещё не подтверждена.",
+          inlineKeyboard: undefined,
+          parseMode: "Markdown",
+        },
+        runtimeContext,
+      });
+      return { success: false };
+    }
+
+    logger?.info("✅ Payment confirmed by YooKassa", { orderId: inputData.orderId });
+
+    // КРИТИЧНО: Сначала обновляем order status, ЗАТЕМ payment status
+    // Это предотвращает inconsistent state где payment = succeeded но order = payment_pending
+
+    // Шаг 1: Обновляем статус заказа на payment_confirmed
+    const statusUpdateResult = await updateOrderStatusTool.execute({
+      context: {
+        orderId: inputData.orderId,
+        status: "payment_confirmed",
+      },
+      runtimeContext,
+    });
+
+    if (!statusUpdateResult.success) {
+      logger?.error("❌ Failed to update order status to payment_confirmed", { orderId: inputData.orderId });
+      await sendTelegramMessage.execute({
+        context: {
+          chatId: inputData.chatId,
+          text: "⚠️ Оплата подтверждена, но произошла техническая ошибка. Свяжитесь с поддержкой.",
+          inlineKeyboard: undefined,
+          parseMode: "Markdown",
+        },
+        runtimeContext,
+      });
+      return { success: false };
+    }
+
+    // Шаг 2: Обновляем статус платежа в БД (КРИТИЧНО для защиты от replay)
+    // Делаем это ПОСЛЕ успешного обновления order status
+    // ВАЖНО: Если это fails, мы ДОЛЖНЫ вернуть error чтобы предотвратить replay attacks
     try {
-      // Формируем контекст для агента
-      let userPrompt = "";
+      const paymentUpdateResult = await dbUpdatePaymentStatus(payment.id, "succeeded");
+      if (!paymentUpdateResult) {
+        throw new Error("Payment status update returned null");
+      }
+      logger?.info("✅ Payment status updated in DB");
+    } catch (error: any) {
+      logger?.error("❌ CRITICAL: Failed to update payment status in DB", { error: error.message });
       
-      if (inputData.messageType === "message") {
-        // Обычное сообщение
-        userPrompt = `
-Пользователь отправил сообщение:
-- Chat ID: ${inputData.chatId}
-- User ID (Telegram): ${inputData.userId}
-- Username: ${inputData.userName || "не указан"}
-- Имя: ${inputData.firstName || ""}
-- Фамилия: ${inputData.lastName || ""}
-- Сообщение: "${inputData.message}"
-
-Обработай это сообщение и выполни необходимые действия.
-Если это команда /start, покажи главное меню.
-`;
-      } else if (inputData.messageType === "callback_query") {
-        // Нажатие на кнопку
-        userPrompt = `
-Пользователь нажал кнопку:
-- Chat ID: ${inputData.chatId}
-- User ID (Telegram): ${inputData.userId}
-- Username: ${inputData.userName || "не указан"}
-- Callback Query ID: ${inputData.callbackQueryId}
-- Callback Data: ${inputData.callbackData}
-- Message ID: ${inputData.messageId}
-
-ВАЖНО: Callback query уже автоматически подтверждён системой, тебе НЕ нужно его подтверждать.
-Обработай это нажатие кнопки, выполни нужные действия и обнови интерфейс.
-`;
+      // КРИТИЧНО: Попытка rollback order status обратно в payment_pending
+      let rollbackSucceeded = false;
+      try {
+        const rollbackResult = await updateOrderStatusTool.execute({
+          context: {
+            orderId: inputData.orderId,
+            status: "payment_pending",
+          },
+          runtimeContext,
+        });
+        
+        if (rollbackResult.success) {
+          logger?.info("✅ Order status rolled back to payment_pending");
+          rollbackSucceeded = true;
+        } else {
+          logger?.error("❌ CRITICAL: Rollback returned success=false - order may be stuck at payment_confirmed");
+        }
+      } catch (rollbackError: any) {
+        logger?.error("❌ CRITICAL: Rollback threw exception", { error: rollbackError.message });
       }
 
-      logger?.info("📝 [processMessageWithAgent] Sending prompt to agent", {
-        promptLength: userPrompt.length,
+      // Уведомляем пользователя и оператора
+      const userMessage = rollbackSucceeded
+        ? "❌ Не удалось обработать платёж. Попробуйте оплатить снова или свяжитесь с поддержкой."
+        : "❌ Произошла критическая ошибка. СРОЧНО свяжитесь с поддержкой (код: PAYMENT_STUCK).";
+      
+      await sendTelegramMessage.execute({
+        context: {
+          chatId: inputData.chatId,
+          text: userMessage,
+          inlineKeyboard: undefined,
+          parseMode: "Markdown",
+        },
+        runtimeContext,
       });
-
-      // Вызываем агента с использованием памяти для отслеживания диалога
-      const response = await financialBotAgent.generateLegacy(
-        [{ role: "user", content: userPrompt }],
-        {
-          resourceId: "telegram-bot", // Общий ресурс для бота
-          threadId: inputData.threadId, // Уникальный ID для каждого пользователя
-          maxSteps: 10, // Разрешаем многошаговые операции
-        }
-      );
-
-      logger?.info("✅ [processMessageWithAgent] Agent response received", {
-        responseLength: response.text.length,
-      });
-
-      return {
-        success: true,
-        response: response.text,
-      };
-    } catch (error: any) {
-      logger?.error("❌ [processMessageWithAgent] Error processing message", {
-        error: error.message,
-        stack: error.stack,
-      });
-
-      return {
-        success: false,
-        response: "",
-        error: error.message || "Unknown error occurred",
-      };
+      
+      if (!rollbackSucceeded) {
+        logger?.error("❌ CRITICAL OPERATOR ALERT: Order stuck at payment_confirmed while payment is pending", {
+          orderId: inputData.orderId,
+          paymentId: payment.id,
+        });
+      }
+      
+      return { success: false };
     }
-  },
-});
 
-/**
- * Шаг: Логирование результата
- */
-const logResult = createStep({
-  id: "log-result",
-  description: "Logs the final result of the workflow execution",
-
-  inputSchema: z.object({
-    success: z.boolean(),
-    response: z.string(),
-    error: z.string().optional(),
-    chatId: z.number(),
-  }),
-
-  outputSchema: z.object({
-    completed: z.boolean(),
-    summary: z.string(),
-  }),
-
-  execute: async ({ inputData, mastra }) => {
-    const logger = mastra?.getLogger();
-
-    if (inputData.success) {
-      logger?.info("✅ [logResult] Workflow completed successfully", {
-        chatId: inputData.chatId,
-        responseLength: inputData.response.length,
+    // Обрабатываем по типу услуги
+    if (orderResult.order.serviceType === "financial_detox") {
+      const formSentResult = await updateOrderStatusTool.execute({
+        context: {
+          orderId: inputData.orderId,
+          status: "form_sent",
+        },
+        runtimeContext,
       });
 
-      return {
-        completed: true,
-        summary: `Successfully processed message for chat ${inputData.chatId}`,
-      };
+      if (!formSentResult.success) {
+        logger?.error("❌ Failed to update order status to form_sent", { orderId: inputData.orderId });
+        // Заказ остался в payment_confirmed, но пользователь должен знать
+        await sendTelegramMessage.execute({
+          context: {
+            chatId: inputData.chatId,
+            text: "⚠️ Оплата получена, но произошла ошибка при отправке формы. Свяжитесь с поддержкой.",
+            inlineKeyboard: undefined,
+            parseMode: "Markdown",
+          },
+          runtimeContext,
+        });
+        return { success: false };
+      }
+
+      await sendTelegramMessage.execute({
+        context: {
+          chatId: inputData.chatId,
+          text: `✅ Оплата получена!\n\n📝 Заполните опрос:\n${orderResult.order.formUrl}\n\nПосле заполнения исполнитель подготовит отчет.`,
+          inlineKeyboard: undefined,
+          parseMode: "Markdown",
+        },
+        runtimeContext,
+      });
     } else {
-      logger?.error("❌ [logResult] Workflow failed", {
-        chatId: inputData.chatId,
-        error: inputData.error,
+      const completedResult = await updateOrderStatusTool.execute({
+        context: {
+          orderId: inputData.orderId,
+          status: "completed",
+        },
+        runtimeContext,
       });
 
-      return {
-        completed: false,
-        summary: `Failed to process message: ${inputData.error}`,
-      };
+      if (!completedResult.success) {
+        logger?.error("❌ Failed to update order status to completed", { orderId: inputData.orderId });
+        await sendTelegramMessage.execute({
+          context: {
+            chatId: inputData.chatId,
+            text: "⚠️ Оплата получена, но произошла ошибка. Свяжитесь с поддержкой.",
+            inlineKeyboard: undefined,
+            parseMode: "Markdown",
+          },
+          runtimeContext,
+        });
+        return { success: false };
+      }
+
+      await sendTelegramMessage.execute({
+        context: {
+          chatId: inputData.chatId,
+          text: "✅ Оплата получена! Доступ к алгоритму открыт.",
+          inlineKeyboard: undefined,
+          parseMode: "Markdown",
+        },
+        runtimeContext,
+      });
     }
+
+    logger?.info("✅ Payment confirmation completed successfully");
+    return { success: true };
   },
 });
 
 /**
- * Telegram Bot Workflow
- * 
- * Основной workflow для обработки всех взаимодействий с Telegram ботом:
- * - Входящие сообщения от пользователей
- * - Нажатия на кнопки (callback queries)
- * - Команды (/start, /help, и т.д.)
+ * Шаг 6: Fallback к агенту
+ */
+const useAgent = createStep({
+  id: "use-agent",
+  inputSchema: z.object({
+    threadId: z.string(),
+    chatId: z.number(),
+    userId: z.number(),
+    message: z.string().optional(),
+    callbackData: z.string().optional(),
+    messageType: z.enum(["message", "callback_query"]),
+  }).passthrough(),
+  outputSchema: z.object({ success: z.boolean() }),
+  execute: async ({ inputData }) => {
+    const prompt = inputData.messageType === "message"
+      ? `Пользователь написал: "${inputData.message}"`
+      : `Пользователь нажал: ${inputData.callbackData}`;
+
+    await financialBotAgent.generateLegacy(
+      [{ role: "user", content: prompt }],
+      {
+        resourceId: "telegram-bot",
+        threadId: inputData.threadId,
+        maxSteps: 10,
+      }
+    );
+
+    return { success: true };
+  },
+});
+
+/**
+ * Главный workflow
  */
 export const telegramBotWorkflow = createWorkflow({
   id: "telegram-bot-workflow",
-
   inputSchema: z.object({
-    threadId: z.string().describe("Thread ID for conversation tracking"),
-    chatId: z.number().describe("Telegram chat ID"),
-    userId: z.number().describe("Telegram user ID"),
+    threadId: z.string(),
+    chatId: z.number(),
+    userId: z.number(),
     userName: z.string().optional(),
     firstName: z.string().optional(),
     lastName: z.string().optional(),
@@ -181,12 +763,14 @@ export const telegramBotWorkflow = createWorkflow({
     callbackData: z.string().optional(),
     messageType: z.enum(["message", "callback_query"]),
   }) as any,
-
-  outputSchema: z.object({
-    completed: z.boolean(),
-    summary: z.string(),
-  }),
+  outputSchema: z.object({ success: z.boolean() }),
 })
-  .then(processMessageWithAgent as any)
-  .then(logResult as any)
+  .then(ensureUser as any)
+  .then(routeAction as any)
+  .branch([
+    [async ({ inputData }) => inputData.action === "create_order_detox", createDetoxOrder as any],
+    [async ({ inputData }) => inputData.action === "create_order_modeling", createModelingOrder as any],
+    [async ({ inputData }) => inputData.action === "confirm_payment", confirmPayment as any],
+    [async ({ inputData }) => inputData.action === "use_agent", useAgent as any],
+  ] as any)
   .commit();

@@ -150,6 +150,66 @@ export async function updatePaymentStatus(
   return updated;
 }
 
+/**
+ * Transactional function: Creates order, payment, and updates status atomically
+ * Returns null if any step fails, ensuring no partial data
+ */
+export async function createOrderWithPaymentTransaction(data: {
+  userId: number;
+  serviceType: schema.ServiceType;
+  price: number;
+  formUrl?: string;
+  yookassaPaymentId: string;
+  paymentUrl: string;
+}) {
+  try {
+    return await db.transaction(async (tx) => {
+      // Step 1: Create order with status "created"
+      const [order] = await tx
+        .insert(schema.orders)
+        .values({
+          userId: data.userId,
+          serviceType: data.serviceType,
+          price: data.price,
+          formUrl: data.formUrl,
+          status: "created",
+        })
+        .returning();
+
+      // Step 2: Create payment
+      const [payment] = await tx
+        .insert(schema.payments)
+        .values({
+          orderId: order.id,
+          amount: data.price,
+          yookassaPaymentId: data.yookassaPaymentId,
+          paymentUrl: data.paymentUrl,
+          status: "pending",
+          currency: "RUB",
+        })
+        .returning();
+
+      // Step 3: Update order status to payment_pending
+      const [updatedOrder] = await tx
+        .update(schema.orders)
+        .set({
+          status: "payment_pending",
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.orders.id, order.id))
+        .returning();
+
+      return {
+        order: updatedOrder,
+        payment,
+      };
+    });
+  } catch (error) {
+    console.error("Transaction failed:", error);
+    return null;
+  }
+}
+
 export async function getPaymentByYookassaId(yookassaPaymentId: string) {
   return await db.query.payments.findFirst({
     where: (payments, { eq }) =>
@@ -183,5 +243,12 @@ export async function getPendingOrders() {
 export async function getAdminUsers() {
   return await db.query.users.findMany({
     where: (users, { eq }) => eq(users.isAdmin, true),
+  });
+}
+
+export async function getPaymentByOrderId(orderId: number) {
+  return await db.query.payments.findFirst({
+    where: (payments, { eq }) => eq(payments.orderId, orderId),
+    orderBy: (payments, { desc }) => [desc(payments.createdAt)],
   });
 }
