@@ -691,21 +691,40 @@ const useAgent = createStep({
     messageType: z.enum(["message", "callback_query"]),
   }).passthrough(),
   outputSchema: z.object({ success: z.boolean() }),
-  execute: async ({ inputData }) => {
+  execute: async ({ inputData, mastra }) => {
+    const logger = mastra?.getLogger();
     const prompt = inputData.messageType === "message"
       ? `Пользователь написал: "${inputData.message}"`
       : `Пользователь нажал: ${inputData.callbackData}`;
 
-    await financialBotAgent.generateLegacy(
-      [{ role: "user", content: prompt }],
-      {
-        resourceId: "telegram-bot",
-        threadId: inputData.threadId,
-        maxSteps: 10,
-      }
-    );
+    logger?.info("🤖 [useAgent] Starting agent generation", {
+      threadId: inputData.threadId,
+      chatId: inputData.chatId,
+      prompt,
+    });
 
-    return { success: true };
+    try {
+      const response = await financialBotAgent.generateLegacy(
+        [{ role: "user", content: prompt }],
+        {
+          resourceId: "telegram-bot",
+          threadId: inputData.threadId,
+          maxSteps: 10,
+        }
+      );
+
+      logger?.info("✅ [useAgent] Agent completed", {
+        responseLength: response?.text?.length || 0,
+      });
+
+      return { success: true };
+    } catch (error: any) {
+      logger?.error("❌ [useAgent] Agent failed", {
+        error: error.message,
+        stack: error.stack,
+      });
+      return { success: false };
+    }
   },
 });
 
