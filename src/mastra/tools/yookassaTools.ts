@@ -4,6 +4,7 @@ import { z } from "zod";
 const YOOKASSA_SHOP_ID = process.env.YOOKASSA_SHOP_ID || "";
 const YOOKASSA_SECRET_KEY = process.env.YOOKASSA_SECRET_KEY || "";
 const YOOKASSA_TEST_MODE = process.env.YOOKASSA_TEST_MODE === "true";
+const YOOKASSA_MOCK_MODE = process.env.YOOKASSA_MOCK_MODE === "true";
 
 /**
  * Генерирует Basic Auth заголовок для ЮKassa API
@@ -40,10 +41,29 @@ export const createYooKassaPayment = createTool({
       amount: context.amount,
       description: context.description,
       testMode: YOOKASSA_TEST_MODE,
+      mockMode: YOOKASSA_MOCK_MODE,
       shopId: YOOKASSA_SHOP_ID,
     });
 
     try {
+      // MOCK MODE: Возвращаем фейковые данные для тестирования
+      if (YOOKASSA_MOCK_MODE) {
+        const mockPaymentId = `mock_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+        const mockPaymentUrl = `https://mock-payment.example.com/pay/${mockPaymentId}`;
+        
+        logger?.info("🎭 [createYooKassaPayment] MOCK MODE: Returning fake payment", {
+          paymentId: mockPaymentId,
+          paymentUrl: mockPaymentUrl,
+        });
+        
+        return {
+          success: true,
+          paymentId: mockPaymentId,
+          paymentUrl: mockPaymentUrl,
+          status: "pending",
+        };
+      }
+
       // Проверяем наличие credentials
       if (!YOOKASSA_SHOP_ID || !YOOKASSA_SECRET_KEY) {
         logger?.error("❌ [createYooKassaPayment] Missing YooKassa credentials");
@@ -161,9 +181,30 @@ export const checkYooKassaPayment = createTool({
     logger?.info("🔍 [checkYooKassaPayment] Checking payment status", {
       paymentId: context.paymentId,
       testMode: YOOKASSA_TEST_MODE,
+      mockMode: YOOKASSA_MOCK_MODE,
     });
 
     try {
+      // MOCK MODE: Возвращаем фейковые данные для тестирования
+      if (YOOKASSA_MOCK_MODE) {
+        // Для mock платежей автоматически считаем их оплаченными
+        const isMockPayment = context.paymentId.startsWith("mock_");
+        
+        logger?.info("🎭 [checkYooKassaPayment] MOCK MODE: Returning fake status", {
+          paymentId: context.paymentId,
+          isMockPayment,
+          status: "succeeded",
+          paid: true,
+        });
+        
+        return {
+          success: true,
+          status: "succeeded",
+          paid: true,
+          amount: 450, // Можно сделать динамически, но для тестирования подойдет
+        };
+      }
+
       // Проверяем наличие credentials
       if (!YOOKASSA_SHOP_ID || !YOOKASSA_SECRET_KEY) {
         logger?.error("❌ [checkYooKassaPayment] Missing YooKassa credentials");
