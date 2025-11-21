@@ -11,6 +11,7 @@ import {
   getUserByTelegramId,
   getPendingOrders,
   getPaymentByOrderId,
+  createOrderWithPaymentTransaction,
 } from "../../../server/storage";
 import type { ServiceType, OrderStatus, PaymentStatus } from "../../../shared/schema";
 
@@ -479,6 +480,75 @@ export const getPendingOrdersTool = createTool({
       };
     } catch (error: any) {
       logger?.error("❌ [getPendingOrdersTool] Error", { error });
+      return {
+        success: false,
+        error: error.message || "Unknown error",
+      };
+    }
+  },
+});
+
+/**
+ * TRANSACTIONAL: Atomically creates order + payment + updates status
+ */
+export const createOrderWithPaymentTransactionTool = createTool({
+  id: "create-order-with-payment-transaction",
+  description:
+    "Atomically creates an order and payment record with status update in a single transaction. Use this for creating new orders to ensure data consistency.",
+  
+  inputSchema: z.object({
+    userId: z.number().describe("User's database ID"),
+    serviceType: z.enum(["financial_detox", "financial_modeling"]).describe("Service type"),
+    price: z.number().describe("Price in rubles"),
+    formUrl: z.string().optional().describe("Yandex form URL for financial detox"),
+    yookassaPaymentId: z.string().describe("YooKassa payment ID"),
+    paymentUrl: z.string().describe("YooKassa payment URL"),
+  }),
+
+  outputSchema: z.object({
+    success: z.boolean(),
+    orderId: z.number().optional(),
+    paymentId: z.number().optional(),
+    error: z.string().optional(),
+  }),
+
+  execute: async ({ context, mastra }) => {
+    const logger = mastra?.getLogger();
+    logger?.info("🔐 [createOrderWithPaymentTransactionTool] Starting atomic transaction", {
+      userId: context.userId,
+      serviceType: context.serviceType,
+    });
+
+    try {
+      const result = await createOrderWithPaymentTransaction({
+        userId: context.userId,
+        serviceType: context.serviceType as ServiceType,
+        price: context.price * 100, // Convert rubles to kopecks
+        formUrl: context.formUrl,
+        yookassaPaymentId: context.yookassaPaymentId,
+        paymentUrl: context.paymentUrl,
+      });
+
+      if (!result) {
+        logger?.error("❌ [createOrderWithPaymentTransactionTool] Transaction returned null");
+        return {
+          success: false,
+          error: "Transaction failed - all changes rolled back",
+        };
+      }
+
+      logger?.info("✅ [createOrderWithPaymentTransactionTool] Transaction completed", {
+        orderId: result.order.id,
+        paymentId: result.payment.id,
+      });
+
+      return {
+        success: true,
+        orderId: result.order.id,
+        paymentId: result.payment.id,
+      };
+    } catch (error: any) {
+      logger?.error("❌ [createOrderWithPaymentTransactionTool] Error", { error });
       return {
         success: false,
         error: error.message || "Unknown error",

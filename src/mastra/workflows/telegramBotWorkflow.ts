@@ -9,6 +9,7 @@ import {
   updateOrderStatusTool,
   createPaymentTool,
   getOrderByIdTool,
+  createOrderWithPaymentTransactionTool,
 } from "../tools/databaseTools";
 import { sendTelegramMessage } from "../tools/telegramTools";
 import { createYooKassaPayment, checkYooKassaPayment } from "../tools/yookassaTools";
@@ -190,35 +191,10 @@ const createDetoxOrder = createStep({
       return { success: false };
     }
 
-    const telegramId = String(inputData.userId);
-
-    // Создаём заказ
-    const orderResult = await createOrderTool.execute({
-      context: {
-        userId: inputData.dbUserId,
-        serviceType: "financial_detox",
-        price: 450,
-        formUrl: "https://forms.yandex.ru/u/6912423849af471482e765d3",
-      },
-      runtimeContext,
-    });
-
-    if (!orderResult.success || !orderResult.orderId) {
-      logger?.error("❌ Failed to create order");
-      await sendTelegramMessage.execute({
-        context: {
-          chatId: inputData.chatId,
-          text: "❌ Не удалось создать заказ. Попробуйте позже.",
-          inlineKeyboard: undefined,
-          parseMode: "Markdown",
-        },
-        runtimeContext,
-      });
-      return { success: false };
-    }
-
-    // Создаём платёж
-    const paymentResult = await createYooKassaPayment.execute({
+    // TRANSACTIONAL APPROACH: Сначала YooKassa, затем atomic DB transaction
+    logger?.info("🔐 Creating YooKassa payment first");
+    
+    const yookassaResult = await createYooKassaPayment.execute({
       context: {
         amount: 450,
         description: "Оплата: Финансовый детокс",
@@ -226,8 +202,8 @@ const createDetoxOrder = createStep({
       runtimeContext,
     });
 
-    if (!paymentResult.success) {
-      logger?.error("❌ Failed to create payment");
+    if (!yookassaResult.success || !yookassaResult.paymentId || !yookassaResult.paymentUrl) {
+      logger?.error("❌ YooKassa payment creation failed");
       await sendTelegramMessage.execute({
         context: {
           chatId: inputData.chatId,
@@ -240,23 +216,29 @@ const createDetoxOrder = createStep({
       return { success: false };
     }
 
-    // Сохраняем платёж
-    const savePaymentResult = await createPaymentTool.execute({
+    logger?.info("✅ YooKassa payment created", { paymentId: yookassaResult.paymentId });
+
+    // ATOMIC DB TRANSACTION: order + payment + status update
+    logger?.info("🔐 Starting atomic DB transaction");
+    
+    const transactionResult = await createOrderWithPaymentTransactionTool.execute({
       context: {
-        orderId: orderResult.orderId,
-        amount: 450,
-        yookassaPaymentId: paymentResult.paymentId,
-        paymentUrl: paymentResult.paymentUrl,
+        userId: inputData.dbUserId,
+        serviceType: "financial_detox",
+        price: 450,
+        formUrl: "https://forms.yandex.ru/u/6912423849af471482e765d3",
+        yookassaPaymentId: yookassaResult.paymentId,
+        paymentUrl: yookassaResult.paymentUrl,
       },
       runtimeContext,
     });
 
-    if (!savePaymentResult.success) {
-      logger?.error("❌ Failed to save payment");
+    if (!transactionResult.success || !transactionResult.orderId || !transactionResult.paymentId) {
+      logger?.error("❌ CRITICAL: DB transaction failed - no partial data created");
       await sendTelegramMessage.execute({
         context: {
           chatId: inputData.chatId,
-          text: "❌ Не удалось сохранить платёж. Попробуйте позже.",
+          text: "❌ Не удалось создать заказ. Попробуйте позже.",
           inlineKeyboard: undefined,
           parseMode: "Markdown",
         },
@@ -265,28 +247,19 @@ const createDetoxOrder = createStep({
       return { success: false };
     }
 
-    // Обновляем статус
-    const statusResult = await updateOrderStatusTool.execute({
-      context: {
-        orderId: orderResult.orderId,
-        status: "payment_pending",
-      },
-      runtimeContext,
+    logger?.info("✅ Transaction completed successfully", {
+      orderId: transactionResult.orderId,
+      paymentId: transactionResult.paymentId,
     });
-
-    if (!statusResult.success) {
-      logger?.error("❌ Failed to update order status");
-      return { success: false };
-    }
 
     // Отправляем сообщение
     await sendTelegramMessage.execute({
       context: {
         chatId: inputData.chatId,
-        text: `💳 Заказ №${orderResult.orderId} создан!\n\nУслуга: Финансовый детокс\nСумма: 450₽\n\n👉 Оплатите:\n${paymentResult.paymentUrl}`,
+        text: `💳 Заказ №${transactionResult.orderId} создан!\n\nУслуга: Финансовый детокс\nСумма: 450₽\n\n👉 Оплатите:\n${yookassaResult.paymentUrl}`,
         inlineKeyboard: [[{
           text: "✅ Я оплатил",
-          callback_data: `payment_${orderResult.orderId}_${paymentResult.paymentId}`,
+          callback_data: `payment_${transactionResult.orderId}_${yookassaResult.paymentId}`,
         }]],
         parseMode: "Markdown",
       },
@@ -348,31 +321,10 @@ const createModelingOrder = createStep({
       return { success: false };
     }
 
-    const orderResult = await createOrderTool.execute({
-      context: {
-        userId: inputData.dbUserId,
-        serviceType: "financial_modeling",
-        price: 350,
-        formUrl: null,
-      },
-      runtimeContext,
-    });
-
-    if (!orderResult.success || !orderResult.orderId) {
-      logger?.error("❌ Failed to create order");
-      await sendTelegramMessage.execute({
-        context: {
-          chatId: inputData.chatId,
-          text: "❌ Не удалось создать заказ. Попробуйте позже.",
-          inlineKeyboard: undefined,
-          parseMode: "Markdown",
-        },
-        runtimeContext,
-      });
-      return { success: false };
-    }
-
-    const paymentResult = await createYooKassaPayment.execute({
+    // TRANSACTIONAL APPROACH: Сначала YooKassa, затем atomic DB transaction
+    logger?.info("🔐 Creating YooKassa payment first");
+    
+    const yookassaResult = await createYooKassaPayment.execute({
       context: {
         amount: 350,
         description: "Оплата: Финансовое моделирование",
@@ -380,8 +332,8 @@ const createModelingOrder = createStep({
       runtimeContext,
     });
 
-    if (!paymentResult.success) {
-      logger?.error("❌ Failed to create payment");
+    if (!yookassaResult.success || !yookassaResult.paymentId || !yookassaResult.paymentUrl) {
+      logger?.error("❌ YooKassa payment creation failed");
       await sendTelegramMessage.execute({
         context: {
           chatId: inputData.chatId,
@@ -394,22 +346,29 @@ const createModelingOrder = createStep({
       return { success: false };
     }
 
-    const savePaymentResult = await createPaymentTool.execute({
+    logger?.info("✅ YooKassa payment created", { paymentId: yookassaResult.paymentId });
+
+    // ATOMIC DB TRANSACTION: order + payment + status update
+    logger?.info("🔐 Starting atomic DB transaction");
+    
+    const transactionResult = await createOrderWithPaymentTransactionTool.execute({
       context: {
-        orderId: orderResult.orderId,
-        amount: 350,
-        yookassaPaymentId: paymentResult.paymentId,
-        paymentUrl: paymentResult.paymentUrl,
+        userId: inputData.dbUserId,
+        serviceType: "financial_modeling",
+        price: 350,
+        formUrl: undefined,
+        yookassaPaymentId: yookassaResult.paymentId,
+        paymentUrl: yookassaResult.paymentUrl,
       },
       runtimeContext,
     });
 
-    if (!savePaymentResult.success) {
-      logger?.error("❌ Failed to save payment");
+    if (!transactionResult.success || !transactionResult.orderId || !transactionResult.paymentId) {
+      logger?.error("❌ CRITICAL: DB transaction failed - no partial data created");
       await sendTelegramMessage.execute({
         context: {
           chatId: inputData.chatId,
-          text: "❌ Не удалось сохранить платёж. Попробуйте позже.",
+          text: "❌ Не удалось создать заказ. Попробуйте позже.",
           inlineKeyboard: undefined,
           parseMode: "Markdown",
         },
@@ -418,26 +377,18 @@ const createModelingOrder = createStep({
       return { success: false };
     }
 
-    const statusResult = await updateOrderStatusTool.execute({
-      context: {
-        orderId: orderResult.orderId,
-        status: "payment_pending",
-      },
-      runtimeContext,
+    logger?.info("✅ Transaction completed successfully", {
+      orderId: transactionResult.orderId,
+      paymentId: transactionResult.paymentId,
     });
-
-    if (!statusResult.success) {
-      logger?.error("❌ Failed to update order status");
-      return { success: false };
-    }
 
     await sendTelegramMessage.execute({
       context: {
         chatId: inputData.chatId,
-        text: `💳 Заказ №${orderResult.orderId} создан!\n\nУслуга: Финансовое моделирование\nСумма: 350₽\n\n👉 Оплатите:\n${paymentResult.paymentUrl}`,
+        text: `💳 Заказ №${transactionResult.orderId} создан!\n\nУслуга: Финансовое моделирование\nСумма: 350₽\n\n👉 Оплатите:\n${yookassaResult.paymentUrl}`,
         inlineKeyboard: [[{
           text: "✅ Я оплатил",
-          callback_data: `payment_${orderResult.orderId}_${paymentResult.paymentId}`,
+          callback_data: `payment_${transactionResult.orderId}_${yookassaResult.paymentId}`,
         }]],
         parseMode: "Markdown",
       },
