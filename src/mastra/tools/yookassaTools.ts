@@ -75,6 +75,11 @@ export const createYooKassaPayment = createTool({
 
       logger?.info("📝 [createYooKassaPayment] Payment data", paymentData);
 
+      logger?.info("🌐 [createYooKassaPayment] Sending request to YooKassa API", {
+        url: "https://api.yookassa.ru/v3/payments",
+        idempotenceKey,
+      });
+
       const response = await fetch("https://api.yookassa.ru/v3/payments", {
         method: "POST",
         headers: {
@@ -85,11 +90,18 @@ export const createYooKassaPayment = createTool({
         body: JSON.stringify(paymentData),
       });
 
+      logger?.info("📡 [createYooKassaPayment] YooKassa API response received", {
+        status: response.status,
+        ok: response.ok,
+      });
+
       if (!response.ok) {
         const errorText = await response.text();
         logger?.error("❌ [createYooKassaPayment] YooKassa API error", {
           status: response.status,
-          error: errorText,
+          statusText: response.statusText,
+          errorBody: errorText,
+          requestData: paymentData,
         });
         return {
           success: false,
@@ -111,7 +123,11 @@ export const createYooKassaPayment = createTool({
         status: result.status,
       };
     } catch (error: any) {
-      logger?.error("❌ [createYooKassaPayment] Error creating payment", { error });
+      logger?.error("❌ [createYooKassaPayment] Exception creating payment", {
+        errorMessage: error.message,
+        errorName: error.name,
+        errorStack: error.stack,
+      });
       return {
         success: false,
         error: error.message || "Unknown error",
