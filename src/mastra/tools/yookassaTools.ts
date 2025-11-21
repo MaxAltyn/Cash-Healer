@@ -3,6 +3,7 @@ import { z } from "zod";
 
 const YOOKASSA_SHOP_ID = process.env.YOOKASSA_SHOP_ID || "";
 const YOOKASSA_SECRET_KEY = process.env.YOOKASSA_SECRET_KEY || "";
+const YOOKASSA_TEST_MODE = process.env.YOOKASSA_TEST_MODE === "true";
 
 /**
  * Генерирует Basic Auth заголовок для ЮKassa API
@@ -41,9 +42,25 @@ export const createYooKassaPayment = createTool({
     logger?.info("💳 [createYooKassaPayment] Creating payment", {
       amount: context.amount,
       description: context.description,
+      testMode: YOOKASSA_TEST_MODE,
     });
 
     try {
+      // ТЕСТОВЫЙ РЕЖИМ: Имитация платежа
+      if (YOOKASSA_TEST_MODE) {
+        const testPaymentId = `test_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+        logger?.info("🧪 [createYooKassaPayment] TEST MODE - Simulating payment creation", {
+          paymentId: testPaymentId,
+        });
+        
+        return {
+          success: true,
+          paymentId: testPaymentId,
+          paymentUrl: `https://test.yookassa.ru/payments/${testPaymentId}`,
+          status: "pending",
+        };
+      }
+
       // Генерируем уникальный idempotence key
       const idempotenceKey = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
       
@@ -135,9 +152,24 @@ export const checkYooKassaPayment = createTool({
     const logger = mastra?.getLogger();
     logger?.info("🔍 [checkYooKassaPayment] Checking payment status", {
       paymentId: context.paymentId,
+      testMode: YOOKASSA_TEST_MODE,
     });
 
     try {
+      // ТЕСТОВЫЙ РЕЖИМ: Автоматически считаем платеж успешным
+      if (YOOKASSA_TEST_MODE || context.paymentId.startsWith("test_")) {
+        logger?.info("🧪 [checkYooKassaPayment] TEST MODE - Auto-confirming payment", {
+          paymentId: context.paymentId,
+        });
+        
+        return {
+          success: true,
+          status: "succeeded",
+          paid: true,
+          amount: 450, // Тестовая сумма
+        };
+      }
+
       const response = await fetch(
         `https://api.yookassa.ru/v3/payments/${context.paymentId}`,
         {

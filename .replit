@@ -75,3 +75,11 @@ waitForPort = 3000
 
 [workflows.workflow.metadata]
 outputType = "automations"
+
+[userenv]
+
+[userenv.shared]
+TELEGRAM_BOT_TOKEN = "7620072471:AAGkIsTVLNeF_Y6H0io1FwmNn6T3qax9rAA"
+YOOKASSA_SHOP_ID = "381764678"
+YOOKASSA_SECRET_KEY = "test_148680"
+YOOKASSA_TEST_MODE = "true"
