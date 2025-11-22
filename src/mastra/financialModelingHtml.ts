@@ -89,16 +89,39 @@ export const financialModelingHtml = `<!DOCTYPE html>
             min-width: 0;
         }
         .expense-category input[type="number"], .wish-item input[type="number"] {
-            flex: 0 0 120px;
+            flex: 0 0 90px;
         }
         .wish-item select {
-            flex: 0 0 140px;
-            padding: 12px;
+            flex: 0 0 100px;
+            padding: 10px 6px;
             border: 2px solid #e0e0e0;
             border-radius: 8px;
-            font-size: 14px;
+            font-size: 13px;
             background: white;
             cursor: pointer;
+        }
+        
+        @media (max-width: 480px) {
+            .expense-category, .wish-item {
+                padding: 8px;
+                gap: 6px;
+            }
+            .expense-category input[type="number"], .wish-item input[type="number"] {
+                flex: 0 0 70px;
+            }
+            .wish-item select {
+                flex: 0 0 85px;
+                padding: 8px 4px;
+                font-size: 12px;
+            }
+            .btn-remove {
+                padding: 6px 8px;
+                font-size: 12px;
+            }
+            input[type="number"], input[type="date"], input[type="text"], textarea {
+                padding: 10px;
+                font-size: 15px;
+            }
         }
         .btn-remove {
             background: #f44336;
@@ -353,6 +376,8 @@ export const financialModelingHtml = `<!DOCTYPE html>
             
             <div id="recommendations"></div>
             
+            <div id="wishCombinations"></div>
+            
             <button class="btn-primary" onclick="saveAndAnalyze()" id="saveBtn">
                 💾 Сохранить и получить AI рекомендации
             </button>
@@ -563,8 +588,176 @@ export const financialModelingHtml = `<!DOCTYPE html>
             
             document.getElementById('recommendations').innerHTML = recommendationHtml;
             
+            // Рассчитать возможные комбинации желаний
+            calculateWishCombinations(afterExpenses);
+            
             document.getElementById('resultsCard').classList.remove('hidden');
-            document.getElementById('resultsCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+        
+        function calculateWishCombinations(afterExpenses) {
+            const wishes = getWishes();
+            if (wishes.length === 0) {
+                document.getElementById('wishCombinations').innerHTML = '';
+                return;
+            }
+            
+            // Группируем желания по приоритету
+            const highPriority = wishes.filter(w => w.priority === 'high');
+            const mediumPriority = wishes.filter(w => w.priority === 'medium');
+            const lowPriority = wishes.filter(w => w.priority === 'low');
+            
+            const combinations = [];
+            
+            // Находим все возможные комбинации
+            function findCombinations(items, budget, current = [], startIdx = 0) {
+                const currentTotal = current.reduce((sum, item) => sum + item.price, 0);
+                if (currentTotal <= budget && current.length > 0) {
+                    combinations.push([...current]);
+                }
+                
+                for (let i = startIdx; i < items.length; i++) {
+                    if (currentTotal + items[i].price <= budget) {
+                        findCombinations(items, budget, [...current, items[i]], i + 1);
+                    }
+                }
+            }
+            
+            findCombinations(wishes, afterExpenses);
+            
+            // Дедупликация комбинаций
+            const uniqueCombinations = [];
+            const seen = new Set();
+            
+            combinations.forEach(combo => {
+                const key = combo.map(w => w.name).sort().join('|');
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    uniqueCombinations.push(combo);
+                }
+            });
+            
+            // Сортируем комбинации: больше желаний + выше приоритет + больше остаток = лучше
+            uniqueCombinations.sort((a, b) => {
+                const totalA = a.reduce((sum, w) => sum + w.price, 0);
+                const totalB = b.reduce((sum, w) => sum + w.price, 0);
+                const scoreA = a.length * 10 + a.filter(w => w.priority === 'high').length * 5 + a.filter(w => w.priority === 'medium').length * 2 + (afterExpenses - totalA) * 0.01;
+                const scoreB = b.length * 10 + b.filter(w => w.priority === 'high').length * 5 + b.filter(w => w.priority === 'medium').length * 2 + (afterExpenses - totalB) * 0.01;
+                return scoreB - scoreA;
+            });
+            
+            const dedupedCombinations = uniqueCombinations;
+            
+            let html = '<div style="margin-top: 20px; padding: 16px; background: #f9f9f9; border-radius: 8px;">';
+            html += '<div class="section-title">✨ Возможные комбинации желаний</div>';
+            
+            if (dedupedCombinations.length === 0) {
+                html += '<p style="color: #666; margin-top: 8px;">К сожалению, на остаток после расходов не хватает ни на одно желание. Попробуйте сократить расходы или дождитесь следующего дохода.</p>';
+            } else {
+                const topCombinations = dedupedCombinations.slice(0, 5); // Показываем топ-5
+                topCombinations.forEach((combo, idx) => {
+                    const total = combo.reduce((sum, w) => sum + w.price, 0);
+                    const priorityEmoji = combo.some(w => w.priority === 'high') ? '🔴' : combo.some(w => w.priority === 'medium') ? '🟡' : '🟢';
+                    const borderColor = combo.some(w => w.priority === 'high') ? '#f44336' : combo.some(w => w.priority === 'medium') ? '#ff9800' : '#4CAF50';
+                    const wishesText = combo.map(w => {
+                        const emoji = w.priority === 'high' ? '🔴' : w.priority === 'medium' ? '🟡' : '🟢';
+                        return emoji + ' ' + w.name + ' (' + w.price.toLocaleString('ru-RU') + ' ₽)';
+                    }).join(' + ');
+                    html += \`
+                        <div style="background: white; padding: 12px; margin: 8px 0; border-radius: 6px; border-left: 3px solid \${borderColor};">
+                            <div style="font-weight: 600; margin-bottom: 4px;">\${priorityEmoji} Вариант \${idx + 1}</div>
+                            <div style="color: #666; font-size: 14px;">
+                                \${wishesText}
+                            </div>
+                            <div style="margin-top: 4px; font-weight: 500; color: #667eea;">
+                                Итого: \${total.toLocaleString('ru-RU')} ₽ <span style="color: #4CAF50;">(останется \${(afterExpenses - total).toLocaleString('ru-RU')} ₽)</span>
+                            </div>
+                        </div>
+                    \`;
+                });
+                
+                if (dedupedCombinations.length > 5) {
+                    html += \`<p style="color: #999; font-size: 13px; margin-top: 8px;">И ещё \${dedupedCombinations.length - 5} возможных комбинаций...</p>\`;
+                }
+            }
+            
+            html += '</div>';
+            document.getElementById('wishCombinations').innerHTML = html;
+        }
+        
+        function convertMarkdownToHtml(text) {
+            // Конвертируем markdown в HTML
+            let html = text;
+            
+            // ### заголовки
+            html = html.replace(/### (.+)/g, '|||H3|||$1|||/H3|||');
+            
+            // ** жирный текст **
+            html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+            
+            // Обработка списков и параграфов
+            const lines = html.split('\\n');
+            let inList = false;
+            let result = [];
+            let paragraphBuffer = [];
+            
+            const flushParagraph = () => {
+                if (paragraphBuffer.length > 0) {
+                    const text = paragraphBuffer.join(' ').trim();
+                    if (text) {
+                        result.push('<p style="margin: 8px 0;">' + text + '</p>');
+                    }
+                    paragraphBuffer = [];
+                }
+            };
+            
+            lines.forEach(line => {
+                const trimmed = line.trim();
+                
+                if (trimmed.startsWith('|||H3|||')) {
+                    // Заголовок
+                    flushParagraph();
+                    if (inList) {
+                        result.push('</ul>');
+                        inList = false;
+                    }
+                    result.push(trimmed);
+                } else if (trimmed.startsWith('- ')) {
+                    // Элемент списка
+                    flushParagraph();
+                    if (!inList) {
+                        result.push('<ul style="margin: 8px 0; padding-left: 20px;">');
+                        inList = true;
+                    }
+                    result.push('<li style="margin: 4px 0;">' + trimmed.substring(2) + '</li>');
+                } else if (trimmed === '') {
+                    // Пустая строка - завершить параграф
+                    flushParagraph();
+                    if (inList) {
+                        result.push('</ul>');
+                        inList = false;
+                    }
+                } else {
+                    // Обычный текст - добавить в буфер параграфа
+                    if (inList) {
+                        result.push('</ul>');
+                        inList = false;
+                    }
+                    paragraphBuffer.push(trimmed);
+                }
+            });
+            
+            // Закрыть открытые элементы
+            flushParagraph();
+            if (inList) {
+                result.push('</ul>');
+            }
+            
+            html = result.join('');
+            
+            // Восстановить заголовки
+            html = html.replace(/\|\|\|H3\|\|\|(.+?)\|\|\|\/H3\|\|\|/g, '<h3 style="margin-top: 16px; margin-bottom: 8px; color: #333; font-size: 18px;">$1</h3>');
+            
+            return html;
         }
         
         async function saveAndAnalyze() {
@@ -586,7 +779,6 @@ export const financialModelingHtml = `<!DOCTYPE html>
             document.getElementById('aiCard').classList.remove('hidden');
             document.getElementById('aiLoader').classList.remove('hidden');
             document.getElementById('aiContent').classList.add('hidden');
-            document.getElementById('aiCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             
             try {
                 const response = await fetch('/api/financial-modeling/save', {
@@ -609,7 +801,7 @@ export const financialModelingHtml = `<!DOCTYPE html>
                 if (result.success) {
                     document.getElementById('aiLoader').classList.add('hidden');
                     document.getElementById('aiContent').classList.remove('hidden');
-                    document.getElementById('aiContent').innerHTML = result.analysis.replace(/\\n/g, '<br>');
+                    document.getElementById('aiContent').innerHTML = convertMarkdownToHtml(result.analysis);
                     saveBtn.textContent = '✅ Сохранено!';
                 } else {
                     throw new Error(result.error || 'Ошибка сохранения');
