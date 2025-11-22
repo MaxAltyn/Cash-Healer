@@ -285,6 +285,9 @@ export const financialModelingHtml = `<!DOCTYPE html>
         <div class="card">
             <h1>💰 Финансовое моделирование</h1>
             <p class="subtitle">Создайте интерактивную модель и экспериментируйте со сценариями</p>
+            <div id="debugStatus" style="background: #e3f2fd; padding: 8px; border-radius: 4px; font-size: 12px; margin-bottom: 16px; display: none;">
+                <strong>🔧 Статус:</strong> <span id="debugText">Загрузка...</span>
+            </div>
             
             <!-- Базовые данные -->
             <div class="section-title">📊 Текущая ситуация</div>
@@ -848,31 +851,103 @@ export const financialModelingHtml = `<!DOCTYPE html>
         
         // Инициализация event listeners (сразу, без DOMContentLoaded, т.к. скрипт в конце страницы)
         (function initEventListeners() {
-            // Кнопка "Добавить расход"
-            document.getElementById('addExpenseBtn').addEventListener('click', addExpense);
+            console.log('🚀 Initializing event listeners...');
             
-            // Кнопка "Добавить желание"
-            document.getElementById('addWishBtn').addEventListener('click', addWish);
+            // Показываем debug статус
+            const debugStatus = document.getElementById('debugStatus');
+            const debugText = document.getElementById('debugText');
+            if (debugStatus && debugText) {
+                debugStatus.style.display = 'block';
+                debugText.textContent = 'JavaScript загружен, инициализация...';
+            }
             
-            // Кнопка "Рассчитать модель"
-            document.getElementById('calculateBtn').addEventListener('click', calculate);
-            
-            // Кнопка "Сохранить и получить AI рекомендации"
-            document.getElementById('saveBtn').addEventListener('click', saveAndAnalyze);
-            
-            // Event listeners для существующих кнопок удаления расходов
-            document.querySelectorAll('#expensesContainer .btn-remove').forEach(btn => {
-                btn.addEventListener('click', function() {
-                    removeExpense(this);
+            try {
+                // Кнопка "Добавить расход"
+                const addExpenseBtn = document.getElementById('addExpenseBtn');
+                if (addExpenseBtn) {
+                    addExpenseBtn.addEventListener('click', function(e) {
+                        console.log('✅ Add expense clicked!');
+                        e.preventDefault();
+                        addExpense();
+                    });
+                    console.log('✅ addExpenseBtn listener attached');
+                } else {
+                    console.error('❌ addExpenseBtn not found!');
+                }
+                
+                // Кнопка "Добавить желание"
+                const addWishBtn = document.getElementById('addWishBtn');
+                if (addWishBtn) {
+                    addWishBtn.addEventListener('click', function(e) {
+                        console.log('✅ Add wish clicked!');
+                        e.preventDefault();
+                        addWish();
+                    });
+                    console.log('✅ addWishBtn listener attached');
+                } else {
+                    console.error('❌ addWishBtn not found!');
+                }
+                
+                // Кнопка "Рассчитать модель"
+                const calculateBtn = document.getElementById('calculateBtn');
+                if (calculateBtn) {
+                    calculateBtn.addEventListener('click', function(e) {
+                        console.log('✅ Calculate clicked!');
+                        e.preventDefault();
+                        calculate();
+                    });
+                    console.log('✅ calculateBtn listener attached');
+                } else {
+                    console.error('❌ calculateBtn not found!');
+                }
+                
+                // Кнопка "Сохранить и получить AI рекомендации"
+                const saveBtn = document.getElementById('saveBtn');
+                if (saveBtn) {
+                    saveBtn.addEventListener('click', function(e) {
+                        console.log('✅ Save clicked!');
+                        e.preventDefault();
+                        saveAndAnalyze();
+                    });
+                    console.log('✅ saveBtn listener attached');
+                } else {
+                    console.error('❌ saveBtn not found!');
+                }
+                
+                // Event listeners для существующих кнопок удаления расходов
+                const expenseRemoveBtns = document.querySelectorAll('#expensesContainer .btn-remove');
+                console.log('Found expense remove buttons:', expenseRemoveBtns.length);
+                expenseRemoveBtns.forEach((btn, idx) => {
+                    btn.addEventListener('click', function() {
+                        console.log('Removing expense', idx);
+                        removeExpense(this);
+                    });
                 });
-            });
-            
-            // Event listeners для существующих кнопок удаления желаний
-            document.querySelectorAll('#wishesContainer .btn-remove').forEach(btn => {
-                btn.addEventListener('click', function() {
-                    removeWish(this);
+                
+                // Event listeners для существующих кнопок удаления желаний
+                const wishRemoveBtns = document.querySelectorAll('#wishesContainer .btn-remove');
+                console.log('Found wish remove buttons:', wishRemoveBtns.length);
+                wishRemoveBtns.forEach((btn, idx) => {
+                    btn.addEventListener('click', function() {
+                        console.log('Removing wish', idx);
+                        removeWish(this);
+                    });
                 });
-            });
+                
+                console.log('✅ All event listeners initialized successfully!');
+                
+                // Обновляем debug статус
+                if (debugText) {
+                    debugText.textContent = '✅ Все кнопки инициализированы успешно!';
+                    debugText.style.color = '#2e7d32';
+                }
+            } catch (error) {
+                console.error('❌ Error initializing event listeners:', error);
+                if (debugText) {
+                    debugText.textContent = '❌ Ошибка: ' + error.message;
+                    debugText.style.color = '#c62828';
+                }
+            }
         })();
     </script>
 </body>
