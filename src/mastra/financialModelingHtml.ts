@@ -145,13 +145,30 @@ export const financialModelingHtml = `<!DOCTYPE html>
     </div>
     
     <script>
+        let initAttempts = 0;
+        const MAX_INIT_ATTEMPTS = 10;
+        
         function initApp() {
+            initAttempts++;
+            console.log('initApp attempt', initAttempts, {
+                hasTelegram: !!window.Telegram,
+                hasWebApp: !!(window.Telegram && window.Telegram.WebApp),
+                location: window.location.href
+            });
+            
             if (!window.Telegram || !window.Telegram.WebApp) {
-                console.error('Telegram Web App SDK not loaded');
-                document.body.innerHTML = '<div style="padding: 20px; text-align: center;">Ошибка загрузки. Откройте через Telegram.</div>';
-                return;
+                if (initAttempts < MAX_INIT_ATTEMPTS) {
+                    console.warn('Telegram Web App SDK not loaded - retrying in 500ms...');
+                    setTimeout(initApp, 500);
+                    return;
+                } else {
+                    console.error('Failed to load Telegram SDK after', MAX_INIT_ATTEMPTS, 'attempts');
+                    document.body.innerHTML = '<div style="padding: 20px; text-align: center; color: #F44336;">❌ Ошибка загрузки SDK Telegram.<br><br>Откройте эту страницу через кнопку в Telegram боте.</div>';
+                    return;
+                }
             }
             
+            console.log('✅ Telegram WebApp SDK loaded successfully!');
             const tg = window.Telegram.WebApp;
             tg.expand();
             tg.MainButton.setText('Сохранить и получить анализ');
