@@ -13,6 +13,9 @@ import { telegramBotWorkflow } from "./workflows/telegramBotWorkflow";
 import { financialBotAgent } from "./agents/financialBotAgent";
 import { registerTelegramTrigger } from "../triggers/telegramTriggers";
 import { financialModelingHtml } from "./financialModelingHtml";
+import * as fs from "fs";
+import * as path from "path";
+import * as url from "url";
 
 // Import tools
 import { sendTelegramMessage } from "./tools/telegramTools";
@@ -224,7 +227,7 @@ export const mastra = new Mastra({
       // ======================================================================
 
       // ======================================================================
-      // FINANCIAL MODELING MINI APP STATIC FILE
+      // FINANCIAL MODELING MINI APP STATIC FILES
       // ======================================================================
       {
         path: "/financial-modeling.html",
@@ -238,6 +241,34 @@ export const mastra = new Mastra({
               'Expires': '0',
             },
           });
+        },
+      },
+      {
+        path: "/financial-modeling.js",
+        method: "GET",
+        createHandler: async () => async (c) => {
+          try {
+            // In dev mode, cwd is /workspace
+            // In compiled mode, cwd is /workspace/.mastra/output, so go up 2 levels
+            const cwd = process.cwd();
+            const isCompiled = cwd.includes('.mastra/output');
+            const projectRoot = isCompiled ? path.join(cwd, '../..') : cwd;
+            const jsPath = path.join(projectRoot, 'src/mastra/financialModeleling.js');
+            const jsContent = fs.readFileSync(jsPath, 'utf-8');
+            return new Response(jsContent, {
+              headers: {
+                'Content-Type': 'application/javascript; charset=utf-8',
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+                'Expires': '0',
+              },
+            });
+          } catch (error: any) {
+            return new Response(`console.error('Failed to load script: ${error.message}');`, {
+              status: 500,
+              headers: { 'Content-Type': 'application/javascript' },
+            });
+          }
         },
       },
 
