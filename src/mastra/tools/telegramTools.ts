@@ -69,8 +69,9 @@ export const sendTelegramMessage = createTool({
         options.reply_markup = {
           inline_keyboard: normalizedKeyboard,
         };
-        logger?.debug("📱 [sendTelegramMessage] Sending inline keyboard", {
+        logger?.info("📱 [sendTelegramMessage] Sending inline keyboard", {
           keyboard: JSON.stringify(normalizedKeyboard),
+          hasWebApp: normalizedKeyboard.some((row: any[]) => row.some((btn: any) => btn.web_app)),
         });
       }
 
