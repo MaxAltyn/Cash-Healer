@@ -223,6 +223,101 @@ export const mastra = new Mastra({
       // ======================================================================
 
       // ======================================================================
+      // FINANCIAL MODELING MINI APP API
+      // ======================================================================
+      {
+        path: "/api/financial-modeling/save",
+        method: "POST",
+        createHandler: async ({ mastra }) => async (c) => {
+          const logger = mastra.getLogger();
+          
+          try {
+            const body = await c.req.json();
+            logger?.info("📊 [Financial Modeling] Received data", { 
+              hasInitData: !!body.initData,
+              balance: body.balance,
+            });
+
+            // Parse Telegram initData (verify user)
+            const initData = body.initData;
+            if (!initData) {
+              return c.json({ success: false, error: "Missing initData" }, 401);
+            }
+
+            // Parse initData to get user info (simplified - in production use crypto verification)
+            const params = new URLSearchParams(initData);
+            const userJson = params.get("user");
+            if (!userJson) {
+              return c.json({ success: false, error: "Invalid user data" }, 401);
+            }
+
+            const user = JSON.parse(userJson);
+            const telegramId = user.id.toString();
+
+            logger?.info("👤 [Financial Modeling] User identified", {
+              telegramId,
+              username: user.username,
+            });
+
+            // Get user from database
+            const { getUserByTelegramId, createOrUpdateFinancialModel } = await import("../../server/storage");
+            const dbUser = await getUserByTelegramId(telegramId);
+
+            if (!dbUser) {
+              return c.json({ success: false, error: "User not found" }, 404);
+            }
+
+            // Convert to kopecks (cents)
+            const balanceKopecks = Math.round((body.balance || 0) * 100);
+            const incomeKopecks = Math.round((body.income || 0) * 100);
+            const expensesKopecks = Math.round((body.expenses || 0) * 100);
+            const goalKopecks = body.goal ? Math.round(body.goal * 100) : 0;
+
+            // Save financial model
+            const model = await createOrUpdateFinancialModel({
+              userId: dbUser.id,
+              currentBalance: balanceKopecks,
+              monthlyIncome: incomeKopecks,
+              monthlyExpenses: expensesKopecks,
+              savingsGoal: goalKopecks,
+              notes: body.notes || "",
+            });
+
+            logger?.info("✅ [Financial Modeling] Model saved", { modelId: model.id });
+
+            // Generate AI analysis
+            const { analyzeBudgetTool } = await import("./tools/budgetAnalysisTools");
+            const analysisResult = await analyzeBudgetTool.execute({
+              context: {
+                currentBalance: body.balance || 0,
+                monthlyIncome: body.income || 0,
+                monthlyExpenses: body.expenses || 0,
+                savingsGoal: body.goal,
+                notes: body.notes,
+              },
+              runtimeContext: {},
+              mastra,
+            });
+
+            if (!analysisResult.success) {
+              throw new Error(analysisResult.error || "Failed to generate analysis");
+            }
+
+            return c.json({
+              success: true,
+              analysis: analysisResult.analysis,
+            });
+          } catch (error: any) {
+            logger?.error("❌ [Financial Modeling] Error", { error });
+            return c.json(
+              { success: false, error: error.message },
+              500
+            );
+          }
+        },
+      },
+
+      // ======================================================================
       // TELEGRAM BOT WEBHOOK
       // ======================================================================
       ...registerTelegramTrigger({

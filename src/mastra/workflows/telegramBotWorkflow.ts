@@ -650,6 +650,23 @@ const confirmPayment = createStep({
         runtimeContext,
       });
     } else {
+      // Financial Modeling - отправляем ссылку на Mini App
+      const miniAppUrl = `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co/financial-modeling.html`;
+      
+      await sendTelegramMessage.execute({
+        context: {
+          chatId: inputData.chatId,
+          text: "✅ *Оплата получена!*\n\n💰 Финансовое моделирование доступно!\n\n📊 Введите ваши финансовые данные и получите персональный AI-анализ бюджета с рекомендациями.\n\nНажмите кнопку ниже, чтобы открыть калькулятор:",
+          inlineKeyboard: [[{
+            text: "🚀 Открыть калькулятор",
+            web_app: { url: miniAppUrl },
+          }]],
+          parseMode: "Markdown",
+        },
+        runtimeContext,
+      });
+
+      // Обновляем статус на completed только после отправки ссылки
       const completedResult = await updateOrderStatusTool.execute({
         context: {
           orderId: inputData.orderId,
@@ -659,28 +676,8 @@ const confirmPayment = createStep({
       });
 
       if (!completedResult.success) {
-        logger?.error("❌ Failed to update order status to completed", { orderId: inputData.orderId });
-        await sendTelegramMessage.execute({
-          context: {
-            chatId: inputData.chatId,
-            text: "⚠️ Оплата получена, но произошла ошибка. Свяжитесь с поддержкой.",
-            inlineKeyboard: undefined,
-            parseMode: "Markdown",
-          },
-          runtimeContext,
-        });
-        return { success: false };
+        logger?.warn("⚠️ Failed to update order status to completed (user already has access)", { orderId: inputData.orderId });
       }
-
-      await sendTelegramMessage.execute({
-        context: {
-          chatId: inputData.chatId,
-          text: "✅ Оплата получена! Доступ к алгоритму открыт.",
-          inlineKeyboard: undefined,
-          parseMode: "Markdown",
-        },
-        runtimeContext,
-      });
     }
 
     logger?.info("✅ Payment confirmation completed successfully");
@@ -758,6 +755,11 @@ const showAdminPanel = createStep({
 
 
 /**
+ * Кэш последнего orderId для каждого админа (для поддержки media groups)
+ */
+const adminOrderIdCache = new Map<number, number>();
+
+/**
  * Шаг 8: Обработка загруженных файлов от админа
  */
 const processAdminDocument = createStep({
@@ -781,9 +783,24 @@ const processAdminDocument = createStep({
 
     // NOTE: Admin check already done in routeAction, so this step only runs for admins
 
-    // Парсинг команды /send {orderId} из caption
+    // Парсинг команды /send {orderId} из caption или использование кэшированного значения
+    let orderId: number | undefined;
     const sendMatch = inputData.caption.match(/\/send\s+(\d+)/i);
-    if (!sendMatch) {
+    
+    if (sendMatch) {
+      // Новая команда - сохраняем orderId в кэш
+      orderId = parseInt(sendMatch[1], 10);
+      adminOrderIdCache.set(inputData.userId, orderId);
+      logger?.info("📝 [processAdminDocument] Parsed and cached orderId", { orderId });
+    } else if (inputData.caption === "" || !inputData.caption) {
+      // Пустой caption - используем кэшированный orderId (для media groups)
+      orderId = adminOrderIdCache.get(inputData.userId);
+      if (orderId) {
+        logger?.info("📝 [processAdminDocument] Using cached orderId for media group", { orderId });
+      }
+    }
+
+    if (!orderId) {
       await sendTelegramMessage.execute({
         context: {
           chatId: inputData.chatId,
@@ -795,9 +812,6 @@ const processAdminDocument = createStep({
       });
       return { success: false };
     }
-
-    const orderId = parseInt(sendMatch[1], 10);
-    logger?.info("📝 [processAdminDocument] Parsed orderId", { orderId });
 
     // Получаем информацию о заказе
     const orderResult = await getOrderByIdTool.execute({
@@ -869,26 +883,34 @@ const processAdminDocument = createStep({
       messageId: forwardResult.messageId,
     });
 
-    // Обновляем статус заказа на completed
-    const updateResult = await sendReportTool.execute({
-      context: { orderId },
-      runtimeContext,
-    });
+    // Обновляем статус заказа на completed (только для первого файла группы)
+    const cachedOrderId = adminOrderIdCache.get(inputData.userId);
+    const isFirstFileInGroup = sendMatch !== null; // Если есть команда в caption, это первый файл
+    
+    if (isFirstFileInGroup) {
+      const updateResult = await sendReportTool.execute({
+        context: { orderId },
+        runtimeContext,
+      });
 
-    if (!updateResult.success) {
-      logger?.error("❌ Failed to update order status", { error: updateResult.error });
+      if (!updateResult.success) {
+        logger?.error("❌ Failed to update order status", { error: updateResult.error });
+      }
+
+      // Отправляем подтверждение админу
+      await sendTelegramMessage.execute({
+        context: {
+          chatId: inputData.chatId,
+          text: `✅ *Отчет отправлен*\n\nЗаказ #${orderId}\nКлиент ID: ${clientTelegramId}\nФайл: ${inputData.fileName}\nСтатус: Завершен`,
+          inlineKeyboard: undefined,
+          parseMode: "Markdown",
+        },
+        runtimeContext,
+      });
+    } else {
+      // Дополнительный файл в группе - только уведомление
+      logger?.info("📎 [processAdminDocument] Additional file forwarded", { orderId, fileName: inputData.fileName });
     }
-
-    // Отправляем подтверждение админу
-    await sendTelegramMessage.execute({
-      context: {
-        chatId: inputData.chatId,
-        text: `✅ *Отчет отправлен*\n\nЗаказ #${orderId}\nКлиент ID: ${clientTelegramId}\nФайл: ${inputData.fileName}\nСтатус: Завершен`,
-        inlineKeyboard: undefined,
-        parseMode: "Markdown",
-      },
-      runtimeContext,
-    });
 
     return { success: true };
   },

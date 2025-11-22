@@ -252,3 +252,59 @@ export async function getPaymentByOrderId(orderId: number) {
     orderBy: (payments, { desc }) => [desc(payments.createdAt)],
   });
 }
+
+// ==================== FINANCIAL MODELS ====================
+
+export async function createOrUpdateFinancialModel(data: {
+  userId: number;
+  currentBalance: number;
+  monthlyIncome: number;
+  monthlyExpenses: number;
+  savingsGoal?: number;
+  notes?: string;
+}) {
+  // Check if model exists for user
+  const existing = await db.query.financialModels.findFirst({
+    where: (models, { eq }) => eq(models.userId, data.userId),
+  });
+
+  if (existing) {
+    // Update existing model
+    const [updated] = await db
+      .update(schema.financialModels)
+      .set({
+        currentBalance: data.currentBalance,
+        monthlyIncome: data.monthlyIncome,
+        monthlyExpenses: data.monthlyExpenses,
+        savingsGoal: data.savingsGoal,
+        notes: data.notes,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.financialModels.userId, data.userId))
+      .returning();
+    return updated;
+  }
+
+  // Create new model
+  const [newModel] = await db
+    .insert(schema.financialModels)
+    .values({
+      userId: data.userId,
+      currentBalance: data.currentBalance,
+      monthlyIncome: data.monthlyIncome,
+      monthlyExpenses: data.monthlyExpenses,
+      savingsGoal: data.savingsGoal,
+      notes: data.notes,
+    })
+    .returning();
+  return newModel;
+}
+
+export async function getFinancialModelByUserId(userId: number) {
+  return await db.query.financialModels.findFirst({
+    where: (models, { eq }) => eq(models.userId, userId),
+    with: {
+      user: true,
+    },
+  });
+}

@@ -82,3 +82,23 @@ export const paymentsRelations = relations(payments, ({ one }) => ({
     references: [orders.id],
   }),
 }));
+
+// Таблица финансовых моделей (для услуги Financial Modeling)
+export const financialModels = pgTable("financial_models", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  currentBalance: integer("current_balance").notNull().default(0), // Текущий баланс в копейках
+  monthlyIncome: integer("monthly_income").notNull().default(0), // Месячный доход в копейках
+  monthlyExpenses: integer("monthly_expenses").notNull().default(0), // Месячные расходы в копейках
+  savingsGoal: integer("savings_goal").default(0), // Цель накоплений в копейках
+  notes: text("notes"), // Дополнительные заметки
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const financialModelsRelations = relations(financialModels, ({ one }) => ({
+  user: one(users, {
+    fields: [financialModels.userId],
+    references: [users.id],
+  }),
+}));
