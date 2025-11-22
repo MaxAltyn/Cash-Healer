@@ -315,6 +315,7 @@ export const getOrderByIdTool = createTool({
     order: z
       .object({
         orderId: z.number(),
+        userId: z.number(),
         serviceType: z.string(),
         status: z.string(),
         price: z.number(),
@@ -351,6 +352,7 @@ export const getOrderByIdTool = createTool({
         success: true,
         order: {
           orderId: order.id,
+          userId: order.userId,
           serviceType: order.serviceType,
           status: order.status,
           price: order.price / 100,
@@ -549,6 +551,49 @@ export const createOrderWithPaymentTransactionTool = createTool({
       };
     } catch (error: any) {
       logger?.error("❌ [createOrderWithPaymentTransactionTool] Error", { error });
+      return {
+        success: false,
+        error: error.message || "Unknown error",
+      };
+    }
+  },
+});
+
+/**
+ * Инструмент для отправки отчета клиенту (обновляет статус заказа на completed)
+ */
+export const sendReportTool = createTool({
+  id: "send-report",
+  description:
+    "Mark an order as completed after sending report to client. Updates order status to 'completed'.",
+  
+  inputSchema: z.object({
+    orderId: z.number().describe("Order ID to mark as completed"),
+  }),
+
+  outputSchema: z.object({
+    success: z.boolean(),
+    error: z.string().optional(),
+  }),
+
+  execute: async ({ context, mastra }) => {
+    const logger = mastra?.getLogger();
+    logger?.info("✅ [sendReportTool] Marking order as completed", {
+      orderId: context.orderId,
+    });
+
+    try {
+      await updateOrderStatus(context.orderId, "completed");
+
+      logger?.info("✅ [sendReportTool] Order marked as completed", {
+        orderId: context.orderId,
+      });
+
+      return {
+        success: true,
+      };
+    } catch (error: any) {
+      logger?.error("❌ [sendReportTool] Error", { error });
       return {
         success: false,
         error: error.message || "Unknown error",

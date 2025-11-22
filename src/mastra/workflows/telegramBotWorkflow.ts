@@ -859,11 +859,11 @@ export const telegramBotWorkflow = createWorkflow({
   .then(ensureUser as any)
   .then(routeAction as any)
   .branch([
-    [async ({ inputData }) => inputData.action === "create_order_detox", createDetoxOrder as any],
-    [async ({ inputData }) => inputData.action === "create_order_modeling", createModelingOrder as any],
-    [async ({ inputData }) => inputData.action === "confirm_payment", confirmPayment as any],
-    [async ({ inputData }) => inputData.action === "show_admin_panel", showAdminPanel as any],
-    [async ({ inputData }) => inputData.action === "send_report", sendReport as any],
-    [async ({ inputData }) => inputData.action === "use_agent", useAgent as any],
+    [async ({ inputData }: any) => inputData.action === "create_order_detox", createDetoxOrder as any],
+    [async ({ inputData }: any) => inputData.action === "create_order_modeling", createModelingOrder as any],
+    [async ({ inputData }: any) => inputData.action === "confirm_payment", confirmPayment as any],
+    [async ({ inputData }: any) => inputData.action === "show_admin_panel", showAdminPanel as any],
+    [async ({ inputData }: any) => inputData.action === "send_report", sendReport as any],
+    [async ({ inputData }: any) => inputData.action === "use_agent", useAgent as any],
   ] as any)
   .commit();
