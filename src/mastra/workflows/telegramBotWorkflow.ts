@@ -657,7 +657,8 @@ const confirmPayment = createStep({
     } else {
       // Financial Modeling - отправляем ссылку на калькулятор
       const baseUrl = `https://${process.env.REPLIT_DEV_DOMAIN || `${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`}`;
-      const calculatorUrl = `${baseUrl}/financial-modeling.html?userId=${inputData.userId}&orderId=${inputData.orderId}`;
+      const timestamp = Date.now();
+      const calculatorUrl = `${baseUrl}/financial-modeling.html?userId=${inputData.userId}&orderId=${inputData.orderId}&v=${timestamp}`;
       
       logger?.info("📱 [confirmPayment] Sending calculator link", { calculatorUrl });
       
