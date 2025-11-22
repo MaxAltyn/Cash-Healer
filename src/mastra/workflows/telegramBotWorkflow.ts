@@ -651,7 +651,9 @@ const confirmPayment = createStep({
       });
     } else {
       // Financial Modeling - отправляем ссылку на Mini App
-      const miniAppUrl = `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co/financial-modeling.html`;
+      const miniAppUrl = `https://${process.env.REPLIT_DEV_DOMAIN || `${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`}/financial-modeling.html`;
+      
+      logger?.info("📱 [confirmPayment] Sending Mini App link", { miniAppUrl });
       
       await sendTelegramMessage.execute({
         context: {
