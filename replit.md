@@ -52,7 +52,13 @@ Preferred communication style: Simple, everyday language.
 - **Financial Detox**: One-time service (400-500 RUB) with Yandex Forms integration
 - **Financial Modeling**: Interactive service (300-400 RUB) with Telegram Mini App interface
   - Web-based budget calculator with AI-powered analysis
-  - Stores financial models in database (balance, income, expenses, savings goals)
+  - **Priority System**: Users can mark wishes as High/Medium/Low priority with emoji indicators
+  - **Enhanced AI Analysis** (Nov 2025):
+    - Shows ALL possible combinations of wishes that fit the budget
+    - Provides long-term multi-month savings plans
+    - Prioritizes recommendations based on user-set priorities
+    - Uses accurate daily budget calculation (afterExpenses / daysUntilIncome)
+  - Stores financial models in database with proper foreign key handling (user.id)
   - Accessible via web_app button in Telegram after payment confirmation
 
 ## Telegram Integration
