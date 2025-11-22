@@ -67,11 +67,19 @@ export const sendTelegramMessage = createTool({
         messageId: result.message_id,
       };
     } catch (error: any) {
+      if (error.response && error.response.statusCode === 400) {
+        logger?.warn("⚠️ [sendTelegramMessage] 400 Bad Request (non-retriable)", { 
+          error: error.message,
+          chatId: context.chatId 
+        });
+        return {
+          success: false,
+          error: error.message || "Bad request - chat not found or invalid",
+        };
+      }
+      
       logger?.error("❌ [sendTelegramMessage] Error sending message", { error });
-      return {
-        success: false,
-        error: error.message || "Unknown error",
-      };
+      throw error;
     }
   },
 });

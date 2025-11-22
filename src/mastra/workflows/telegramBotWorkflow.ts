@@ -17,7 +17,8 @@ import { sendTelegramMessage } from "../tools/telegramTools";
 import { createYooKassaPayment, checkYooKassaPayment } from "../tools/yookassaTools";
 
 /**
- * Шаг 1: Создание/обновление пользователя
+ * Шаг 1: Создание/обновление пользователя и получение isAdmin
+ * ОПТИМИЗАЦИЯ: объединяем создание пользователя и получение isAdmin в один шаг
  */
 const ensureUser = createStep({
   id: "ensure-user",
@@ -36,6 +37,7 @@ const ensureUser = createStep({
   }),
   outputSchema: z.object({
     dbUserId: z.number(),
+    isAdmin: z.boolean(),
     threadId: z.string(),
     chatId: z.number(),
     userId: z.number(),
@@ -50,7 +52,8 @@ const ensureUser = createStep({
   }),
   execute: async ({ inputData, runtimeContext, mastra }) => {
     const logger = mastra?.getLogger();
-    const result = await createOrUpdateUserTool.execute({
+    
+    const createResult = await createOrUpdateUserTool.execute({
       context: {
         telegramId: String(inputData.userId),
         username: inputData.userName,
@@ -60,13 +63,20 @@ const ensureUser = createStep({
       runtimeContext,
     });
     
-    if (!result.success || !result.userId) {
-      logger?.error("❌ Failed to create/update user", { error: result.error });
-      throw new Error(`Failed to create user: ${result.error || "Unknown error"}`);
+    if (!createResult.success || !createResult.userId) {
+      logger?.error("❌ Failed to create/update user", { error: createResult.error });
+      throw new Error(`Failed to create user: ${createResult.error || "Unknown error"}`);
     }
     
+    const userResult = await getUserByTelegramIdTool.execute({
+      context: { telegramId: String(inputData.userId) },
+      runtimeContext,
+    });
+    const isAdmin = userResult.isAdmin === true;
+    
     return { 
-      dbUserId: result.userId,
+      dbUserId: createResult.userId,
+      isAdmin,
       ...inputData,
     };
   },
@@ -74,11 +84,13 @@ const ensureUser = createStep({
 
 /**
  * Шаг 2: Определение действия
+ * ОПТИМИЗАЦИЯ: используем isAdmin из предыдущего шага вместо повторного запроса к БД
  */
 const routeAction = createStep({
   id: "route-action",
   inputSchema: z.object({
     dbUserId: z.number(),
+    isAdmin: z.boolean(),
     threadId: z.string(),
     chatId: z.number(),
     userId: z.number(),
@@ -108,7 +120,7 @@ const routeAction = createStep({
     callbackData: z.string().optional(),
     messageType: z.enum(["message", "callback_query"]),
   }),
-  execute: async ({ inputData, mastra, runtimeContext }) => {
+  execute: async ({ inputData, mastra }) => {
     const logger = mastra?.getLogger();
     let action: "create_order_detox" | "create_order_modeling" | "confirm_payment" | "show_admin_panel" | "send_report" | "use_agent" = "use_agent";
     let orderId: number | undefined;
@@ -118,14 +130,10 @@ const routeAction = createStep({
       messageType: inputData.messageType,
       callbackData: inputData.callbackData,
       message: inputData.message,
+      isAdmin: inputData.isAdmin,
     });
 
-    // Проверяем является ли пользователь админом
-    const userResult = await getUserByTelegramIdTool.execute({
-      context: { telegramId: String(inputData.userId) },
-      runtimeContext,
-    });
-    const isAdmin = userResult.isAdmin === true;
+    const isAdmin = inputData.isAdmin;
 
     // Admin commands
     if (isAdmin) {
