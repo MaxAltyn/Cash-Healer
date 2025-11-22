@@ -285,10 +285,6 @@ export const financialModelingHtml = `<!DOCTYPE html>
         <div class="card">
             <h1>💰 Финансовое моделирование</h1>
             <p class="subtitle">Создайте интерактивную модель и экспериментируйте со сценариями</p>
-            <div id="debugStatus" style="background: #ffe082; padding: 12px; border-radius: 8px; font-size: 14px; margin-bottom: 16px; border: 2px solid #ff9800;">
-                <strong>🔧 ТЕСТ:</strong> <span id="debugText">Если видите этот текст - HTML загрузился!</span>
-                <button onclick="alert('JavaScript работает!')" style="margin-left: 8px; padding: 4px 8px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">Тест JS</button>
-            </div>
             
             <!-- Базовые данные -->
             <div class="section-title">📊 Текущая ситуация</div>
@@ -317,15 +313,15 @@ export const financialModelingHtml = `<!DOCTYPE html>
                 <div class="expense-category">
                     <input type="text" placeholder="Категория (например, Еда)" value="Еда">
                     <input type="number" placeholder="Сумма" value="15000">
-                    <button class="btn-remove">✕</button>
+                    <button class="btn-remove" onclick="removeExpense(this)">✕</button>
                 </div>
                 <div class="expense-category">
                     <input type="text" placeholder="Категория (например, Транспорт)" value="Транспорт">
                     <input type="number" placeholder="Сумма" value="5000">
-                    <button class="btn-remove">✕</button>
+                    <button class="btn-remove" onclick="removeExpense(this)">✕</button>
                 </div>
             </div>
-            <button class="btn-add" id="addExpenseBtn">+ Добавить расход</button>
+            <button class="btn-add" onclick="addExpense()">+ Добавить расход</button>
             
             <!-- Хотелки -->
             <div class="section-title" style="margin-top: 24px;">✨ Желаемые покупки</div>
@@ -338,12 +334,12 @@ export const financialModelingHtml = `<!DOCTYPE html>
                         <option value="medium" selected>🟡 Средний</option>
                         <option value="low">🟢 Низкий</option>
                     </select>
-                    <button class="btn-remove">✕</button>
+                    <button class="btn-remove" onclick="removeWish(this)">✕</button>
                 </div>
             </div>
-            <button class="btn-add" id="addWishBtn">+ Добавить желание</button>
+            <button class="btn-add" onclick="addWish()">+ Добавить желание</button>
             
-            <button class="btn-primary" id="calculateBtn">🔮 Рассчитать модель</button>
+            <button class="btn-primary" onclick="calculate()">🔮 Рассчитать модель</button>
         </div>
         
         <!-- Результаты -->
@@ -382,7 +378,7 @@ export const financialModelingHtml = `<!DOCTYPE html>
             
             <div id="wishCombinations"></div>
             
-            <button class="btn-primary" id="saveBtn">
+            <button class="btn-primary" onclick="saveAndAnalyze()">
                 💾 Сохранить и получить AI рекомендации
             </button>
         </div>
@@ -413,12 +409,8 @@ export const financialModelingHtml = `<!DOCTYPE html>
             div.innerHTML = \`
                 <input type="text" placeholder="Категория">
                 <input type="number" placeholder="Сумма">
-                <button class="btn-remove">✕</button>
+                <button class="btn-remove" onclick="removeExpense(this)">✕</button>
             \`;
-            const removeBtn = div.querySelector('.btn-remove');
-            removeBtn.addEventListener('click', function() {
-                removeExpense(this);
-            });
             container.appendChild(div);
         }
         
@@ -441,12 +433,8 @@ export const financialModelingHtml = `<!DOCTYPE html>
                     <option value="medium" selected>🟡 Средний</option>
                     <option value="low">🟢 Низкий</option>
                 </select>
-                <button class="btn-remove">✕</button>
+                <button class="btn-remove" onclick="removeWish(this)">✕</button>
             \`;
-            const removeBtn = div.querySelector('.btn-remove');
-            removeBtn.addEventListener('click', function() {
-                removeWish(this);
-            });
             container.appendChild(div);
         }
         
@@ -849,107 +837,6 @@ export const financialModelingHtml = `<!DOCTYPE html>
                 calculate();
             }
         }, 2000);
-        
-        // Инициализация event listeners (сразу, без DOMContentLoaded, т.к. скрипт в конце страницы)
-        (function initEventListeners() {
-            console.log('🚀 Initializing event listeners...');
-            
-            // Показываем debug статус
-            const debugStatus = document.getElementById('debugStatus');
-            const debugText = document.getElementById('debugText');
-            if (debugStatus && debugText) {
-                debugStatus.style.display = 'block';
-                debugText.textContent = 'JavaScript загружен, инициализация...';
-            }
-            
-            try {
-                // Кнопка "Добавить расход"
-                const addExpenseBtn = document.getElementById('addExpenseBtn');
-                if (addExpenseBtn) {
-                    addExpenseBtn.addEventListener('click', function(e) {
-                        console.log('✅ Add expense clicked!');
-                        e.preventDefault();
-                        addExpense();
-                    });
-                    console.log('✅ addExpenseBtn listener attached');
-                } else {
-                    console.error('❌ addExpenseBtn not found!');
-                }
-                
-                // Кнопка "Добавить желание"
-                const addWishBtn = document.getElementById('addWishBtn');
-                if (addWishBtn) {
-                    addWishBtn.addEventListener('click', function(e) {
-                        console.log('✅ Add wish clicked!');
-                        e.preventDefault();
-                        addWish();
-                    });
-                    console.log('✅ addWishBtn listener attached');
-                } else {
-                    console.error('❌ addWishBtn not found!');
-                }
-                
-                // Кнопка "Рассчитать модель"
-                const calculateBtn = document.getElementById('calculateBtn');
-                if (calculateBtn) {
-                    calculateBtn.addEventListener('click', function(e) {
-                        console.log('✅ Calculate clicked!');
-                        e.preventDefault();
-                        calculate();
-                    });
-                    console.log('✅ calculateBtn listener attached');
-                } else {
-                    console.error('❌ calculateBtn not found!');
-                }
-                
-                // Кнопка "Сохранить и получить AI рекомендации"
-                const saveBtn = document.getElementById('saveBtn');
-                if (saveBtn) {
-                    saveBtn.addEventListener('click', function(e) {
-                        console.log('✅ Save clicked!');
-                        e.preventDefault();
-                        saveAndAnalyze();
-                    });
-                    console.log('✅ saveBtn listener attached');
-                } else {
-                    console.error('❌ saveBtn not found!');
-                }
-                
-                // Event listeners для существующих кнопок удаления расходов
-                const expenseRemoveBtns = document.querySelectorAll('#expensesContainer .btn-remove');
-                console.log('Found expense remove buttons:', expenseRemoveBtns.length);
-                expenseRemoveBtns.forEach((btn, idx) => {
-                    btn.addEventListener('click', function() {
-                        console.log('Removing expense', idx);
-                        removeExpense(this);
-                    });
-                });
-                
-                // Event listeners для существующих кнопок удаления желаний
-                const wishRemoveBtns = document.querySelectorAll('#wishesContainer .btn-remove');
-                console.log('Found wish remove buttons:', wishRemoveBtns.length);
-                wishRemoveBtns.forEach((btn, idx) => {
-                    btn.addEventListener('click', function() {
-                        console.log('Removing wish', idx);
-                        removeWish(this);
-                    });
-                });
-                
-                console.log('✅ All event listeners initialized successfully!');
-                
-                // Обновляем debug статус
-                if (debugText) {
-                    debugText.textContent = '✅ Все кнопки инициализированы успешно!';
-                    debugText.style.color = '#2e7d32';
-                }
-            } catch (error) {
-                console.error('❌ Error initializing event listeners:', error);
-                if (debugText) {
-                    debugText.textContent = '❌ Ошибка: ' + error.message;
-                    debugText.style.color = '#c62828';
-                }
-            }
-        })();
     </script>
 </body>
 </html>`;
