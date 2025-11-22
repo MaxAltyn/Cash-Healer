@@ -13,7 +13,7 @@ import {
   getPendingOrdersTool,
   sendReportTool,
 } from "../tools/databaseTools";
-import { sendTelegramMessage } from "../tools/telegramTools";
+import { sendTelegramMessage, forwardTelegramDocument, getTelegramFile } from "../tools/telegramTools";
 import { createYooKassaPayment, checkYooKassaPayment } from "../tools/yookassaTools";
 
 /**
@@ -33,7 +33,11 @@ const ensureUser = createStep({
     messageId: z.number().optional(),
     callbackQueryId: z.string().optional(),
     callbackData: z.string().optional(),
-    messageType: z.enum(["message", "callback_query"]),
+    messageType: z.enum(["message", "callback_query", "document"]),
+    fileId: z.string().optional(),
+    fileName: z.string().optional(),
+    fileSize: z.number().optional(),
+    caption: z.string().optional(),
   }),
   outputSchema: z.object({
     dbUserId: z.number(),
@@ -48,7 +52,11 @@ const ensureUser = createStep({
     messageId: z.number().optional(),
     callbackQueryId: z.string().optional(),
     callbackData: z.string().optional(),
-    messageType: z.enum(["message", "callback_query"]),
+    messageType: z.enum(["message", "callback_query", "document"]),
+    fileId: z.string().optional(),
+    fileName: z.string().optional(),
+    fileSize: z.number().optional(),
+    caption: z.string().optional(),
   }),
   execute: async ({ inputData, runtimeContext, mastra }) => {
     const logger = mastra?.getLogger();
@@ -101,13 +109,18 @@ const routeAction = createStep({
     messageId: z.number().optional(),
     callbackQueryId: z.string().optional(),
     callbackData: z.string().optional(),
-    messageType: z.enum(["message", "callback_query"]),
+    messageType: z.enum(["message", "callback_query", "document"]),
+    fileId: z.string().optional(),
+    fileName: z.string().optional(),
+    fileSize: z.number().optional(),
+    caption: z.string().optional(),
   }),
   outputSchema: z.object({
-    action: z.enum(["create_order_detox", "create_order_modeling", "confirm_payment", "show_admin_panel", "send_report", "use_agent"]),
+    action: z.enum(["create_order_detox", "create_order_modeling", "confirm_payment", "show_admin_panel", "send_report", "process_admin_document", "reject_non_admin_document", "use_agent"]),
     orderId: z.number().optional(),
     paymentId: z.string().optional(),
     dbUserId: z.number(),
+    isAdmin: z.boolean(),
     threadId: z.string(),
     chatId: z.number(),
     userId: z.number(),
@@ -118,11 +131,15 @@ const routeAction = createStep({
     messageId: z.number().optional(),
     callbackQueryId: z.string().optional(),
     callbackData: z.string().optional(),
-    messageType: z.enum(["message", "callback_query"]),
+    messageType: z.enum(["message", "callback_query", "document"]),
+    fileId: z.string().optional(),
+    fileName: z.string().optional(),
+    fileSize: z.number().optional(),
+    caption: z.string().optional(),
   }),
   execute: async ({ inputData, mastra }) => {
     const logger = mastra?.getLogger();
-    let action: "create_order_detox" | "create_order_modeling" | "confirm_payment" | "show_admin_panel" | "send_report" | "use_agent" = "use_agent";
+    let action: "create_order_detox" | "create_order_modeling" | "confirm_payment" | "show_admin_panel" | "send_report" | "process_admin_document" | "reject_non_admin_document" | "use_agent" = "use_agent";
     let orderId: number | undefined;
     let paymentId: string | undefined;
 
@@ -131,9 +148,30 @@ const routeAction = createStep({
       callbackData: inputData.callbackData,
       message: inputData.message,
       isAdmin: inputData.isAdmin,
+      fileId: inputData.fileId,
     });
 
     const isAdmin = inputData.isAdmin;
+
+    // Document upload - check admin privileges first
+    if (inputData.messageType === "document" && inputData.fileId) {
+      logger?.info("📎 [routeAction] Document detected", { isAdmin });
+      
+      if (!isAdmin) {
+        logger?.warn("⚠️ [routeAction] Non-admin attempted document upload");
+        action = "reject_non_admin_document";
+      } else {
+        logger?.info("✅ [routeAction] Admin document upload, routing to processAdminDocument");
+        action = "process_admin_document";
+      }
+      
+      return {
+        action,
+        orderId,
+        paymentId,
+        ...inputData,
+      };
+    }
 
     // Admin commands
     if (isAdmin) {
@@ -774,7 +812,7 @@ const sendReport = createStep({
     await sendTelegramMessage.execute({
       context: {
         chatId: inputData.chatId,
-        text: `📤 Для отправки отчета пользователю:\n\n1. Загрузите PDF и/или Excel файлы отчета\n2. В подписи к файлу укажите: \`/send ${orderResult.order.userId}\`\n\nЗаказ #${inputData.orderId}\nПользователь ID: ${orderResult.order.userId}\nТип: ${orderResult.order.serviceType}\n\n_Отправьте файлы с подписью в этот чат_`,
+        text: `📤 Для отправки отчета пользователю:\n\n1. Загрузите PDF и/или Excel файлы отчета\n2. В подписи к файлу укажите: \`/send ${inputData.orderId}\`\n\nЗаказ #${inputData.orderId}\nТип: ${orderResult.order.serviceType}\n\n_Отправьте файлы с подписью в этот чат_`,
         inlineKeyboard: undefined,
         parseMode: "Markdown",
       },
@@ -786,7 +824,173 @@ const sendReport = createStep({
 });
 
 /**
- * Шаг 8: Fallback к агенту
+ * Шаг 8: Обработка загруженных файлов от админа
+ */
+const processAdminDocument = createStep({
+  id: "process-admin-document",
+  inputSchema: z.object({
+    chatId: z.number(),
+    userId: z.number(),
+    fileId: z.string(),
+    fileName: z.string(),
+    caption: z.string(),
+    isAdmin: z.boolean(),
+  }).passthrough(),
+  outputSchema: z.object({ success: z.boolean() }),
+  execute: async ({ inputData, runtimeContext, mastra }) => {
+    const logger = mastra?.getLogger();
+    logger?.info("📎 [processAdminDocument] Processing admin file upload", {
+      fileId: inputData.fileId,
+      fileName: inputData.fileName,
+      caption: inputData.caption,
+    });
+
+    // NOTE: Admin check already done in routeAction, so this step only runs for admins
+
+    // Парсинг команды /send {orderId} из caption
+    const sendMatch = inputData.caption.match(/\/send\s+(\d+)/i);
+    if (!sendMatch) {
+      await sendTelegramMessage.execute({
+        context: {
+          chatId: inputData.chatId,
+          text: "❌ Неверный формат команды.\n\nИспользуйте: `/send {номер_заказа}`\n\nПример: `/send 123`",
+          inlineKeyboard: undefined,
+          parseMode: "Markdown",
+        },
+        runtimeContext,
+      });
+      return { success: false };
+    }
+
+    const orderId = parseInt(sendMatch[1], 10);
+    logger?.info("📝 [processAdminDocument] Parsed orderId", { orderId });
+
+    // Получаем информацию о заказе
+    const orderResult = await getOrderByIdTool.execute({
+      context: { orderId },
+      runtimeContext,
+    });
+
+    if (!orderResult.order) {
+      logger?.error("❌ Order not found", { orderId });
+      await sendTelegramMessage.execute({
+        context: {
+          chatId: inputData.chatId,
+          text: `❌ Заказ #${orderId} не найден.`,
+          inlineKeyboard: undefined,
+          parseMode: "Markdown",
+        },
+        runtimeContext,
+      });
+      return { success: false };
+    }
+
+    // Получаем telegramId клиента из заказа
+    const clientTelegramId = parseInt(orderResult.order.telegramId, 10);
+    
+    if (isNaN(clientTelegramId)) {
+      logger?.error("❌ Invalid telegramId", { telegramId: orderResult.order.telegramId });
+      await sendTelegramMessage.execute({
+        context: {
+          chatId: inputData.chatId,
+          text: `❌ Некорректный Telegram ID клиента для заказа #${orderId}.`,
+          inlineKeyboard: undefined,
+          parseMode: "Markdown",
+        },
+        runtimeContext,
+      });
+      return { success: false };
+    }
+    
+    logger?.info("👤 [processAdminDocument] Client found", {
+      clientTelegramId,
+      orderId: orderResult.order.orderId,
+    });
+
+    // Пересылаем документ клиенту
+    const forwardResult = await forwardTelegramDocument.execute({
+      context: {
+        chatId: clientTelegramId,
+        fileId: inputData.fileId,
+        caption: `📊 *Отчет по заказу #${orderId}*\n\n${orderResult.order.serviceType === "financial_detox" ? "Финансовый детокс" : "Финансовое моделирование"}\n\nВаш отчет готов!`,
+      },
+      runtimeContext,
+    });
+
+    if (!forwardResult.success) {
+      logger?.error("❌ Failed to forward document", { error: forwardResult.error });
+      await sendTelegramMessage.execute({
+        context: {
+          chatId: inputData.chatId,
+          text: `❌ Ошибка при отправке файла клиенту: ${forwardResult.error}`,
+          inlineKeyboard: undefined,
+          parseMode: "Markdown",
+        },
+        runtimeContext,
+      });
+      return { success: false };
+    }
+
+    logger?.info("✅ [processAdminDocument] Document forwarded", {
+      messageId: forwardResult.messageId,
+    });
+
+    // Обновляем статус заказа на completed
+    const updateResult = await sendReportTool.execute({
+      context: { orderId },
+      runtimeContext,
+    });
+
+    if (!updateResult.success) {
+      logger?.error("❌ Failed to update order status", { error: updateResult.error });
+    }
+
+    // Отправляем подтверждение админу
+    await sendTelegramMessage.execute({
+      context: {
+        chatId: inputData.chatId,
+        text: `✅ *Отчет отправлен*\n\nЗаказ #${orderId}\nКлиент ID: ${clientTelegramId}\nФайл: ${inputData.fileName}\nСтатус: Завершен`,
+        inlineKeyboard: undefined,
+        parseMode: "Markdown",
+      },
+      runtimeContext,
+    });
+
+    return { success: true };
+  },
+});
+
+/**
+ * Шаг 9: Отклонение загрузки файлов от не-админа
+ */
+const rejectNonAdminDocument = createStep({
+  id: "reject-non-admin-document",
+  inputSchema: z.object({
+    chatId: z.number(),
+  }).passthrough(),
+  outputSchema: z.object({ success: z.boolean() }),
+  execute: async ({ inputData, runtimeContext, mastra }) => {
+    const logger = mastra?.getLogger();
+    logger?.info("🚫 [rejectNonAdminDocument] Rejecting non-admin document upload", {
+      chatId: inputData.chatId,
+    });
+
+    await sendTelegramMessage.execute({
+      context: {
+        chatId: inputData.chatId,
+        text: "❌ Загрузка файлов доступна только администраторам.\n\nЕсли у вас есть вопросы, напишите их текстом.",
+        inlineKeyboard: undefined,
+        parseMode: "Markdown",
+      },
+      runtimeContext,
+    });
+
+    return { success: true };
+  },
+});
+
+/**
+ * Шаг 10: Fallback к агенту
  */
 const useAgent = createStep({
   id: "use-agent",
@@ -852,7 +1056,11 @@ export const telegramBotWorkflow = createWorkflow({
     messageId: z.number().optional(),
     callbackQueryId: z.string().optional(),
     callbackData: z.string().optional(),
-    messageType: z.enum(["message", "callback_query"]),
+    messageType: z.enum(["message", "callback_query", "document"]),
+    fileId: z.string().optional(),
+    fileName: z.string().optional(),
+    fileSize: z.number().optional(),
+    caption: z.string().optional(),
   }) as any,
   outputSchema: z.object({ success: z.boolean() }),
 })
@@ -864,6 +1072,8 @@ export const telegramBotWorkflow = createWorkflow({
     [async ({ inputData }: any) => inputData.action === "confirm_payment", confirmPayment as any],
     [async ({ inputData }: any) => inputData.action === "show_admin_panel", showAdminPanel as any],
     [async ({ inputData }: any) => inputData.action === "send_report", sendReport as any],
+    [async ({ inputData }: any) => inputData.action === "process_admin_document", processAdminDocument as any],
+    [async ({ inputData }: any) => inputData.action === "reject_non_admin_document", rejectNonAdminDocument as any],
     [async ({ inputData }: any) => inputData.action === "use_agent", useAgent as any],
   ] as any)
   .commit();

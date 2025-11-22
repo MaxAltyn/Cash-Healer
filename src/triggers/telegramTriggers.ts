@@ -10,7 +10,7 @@ if (!process.env.TELEGRAM_BOT_TOKEN) {
 }
 
 export type TriggerInfoTelegramMessage = {
-  type: "telegram/message" | "telegram/callback_query";
+  type: "telegram/message" | "telegram/callback_query" | "telegram/document";
   params: {
     chatId: number;
     userId: number;
@@ -21,6 +21,10 @@ export type TriggerInfoTelegramMessage = {
     messageId?: number;
     callbackQueryId?: string;
     callbackData?: string;
+    fileId?: string;
+    fileName?: string;
+    fileSize?: number;
+    caption?: string;
   };
   payload: any;
 };
@@ -85,6 +89,25 @@ export function registerTelegramTrigger({
               payload,
             }).catch((error) => {
               logger?.error("❌ [Telegram] Error handling callback query", { error });
+            });
+          }
+          // Handle document messages (file uploads) - Check BEFORE regular messages
+          else if (payload.message && payload.message.document) {
+            await handler(mastra, {
+              type: "telegram/document",
+              params: {
+                chatId: payload.message.chat.id,
+                userId: payload.message.from.id,
+                userName: payload.message.from.username || "",
+                firstName: payload.message.from.first_name || "",
+                lastName: payload.message.from.last_name || "",
+                messageId: payload.message.message_id,
+                fileId: payload.message.document.file_id,
+                fileName: payload.message.document.file_name || "unknown",
+                fileSize: payload.message.document.file_size || 0,
+                caption: payload.message.caption || "",
+              },
+              payload,
             });
           }
           // Handle regular messages

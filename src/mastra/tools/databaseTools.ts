@@ -316,6 +316,7 @@ export const getOrderByIdTool = createTool({
       .object({
         orderId: z.number(),
         userId: z.number(),
+        telegramId: z.string(),
         serviceType: z.string(),
         status: z.string(),
         price: z.number(),
@@ -353,6 +354,7 @@ export const getOrderByIdTool = createTool({
         order: {
           orderId: order.id,
           userId: order.userId,
+          telegramId: order.user.telegramId,
           serviceType: order.serviceType,
           status: order.status,
           price: order.price / 100,

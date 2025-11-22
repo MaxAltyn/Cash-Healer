@@ -193,6 +193,118 @@ export const answerCallbackQuery = createTool({
 });
 
 /**
+ * Tool for getting file information from Telegram
+ */
+export const getTelegramFile = createTool({
+  id: "get-telegram-file",
+  description:
+    "Get file information from Telegram (file_id, file_path, file_size). Use this to download files uploaded by users.",
+  
+  inputSchema: z.object({
+    fileId: z.string().describe("Telegram file ID"),
+  }),
+
+  outputSchema: z.object({
+    success: z.boolean(),
+    fileId: z.string().optional(),
+    filePath: z.string().optional(),
+    fileSize: z.number().optional(),
+    fileUrl: z.string().optional().describe("Full download URL for the file"),
+    error: z.string().optional(),
+  }),
+
+  execute: async ({ context, mastra }) => {
+    const logger = mastra?.getLogger();
+    logger?.info("📥 [getTelegramFile] Getting file info", {
+      fileId: context.fileId,
+    });
+
+    try {
+      const file = await bot.getFile(context.fileId);
+      const fileUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${file.file_path}`;
+
+      logger?.info("✅ [getTelegramFile] File info retrieved", {
+        fileId: file.file_id,
+        filePath: file.file_path,
+        fileSize: file.file_size,
+      });
+
+      return {
+        success: true,
+        fileId: file.file_id,
+        filePath: file.file_path,
+        fileSize: file.file_size,
+        fileUrl: fileUrl,
+      };
+    } catch (error: any) {
+      logger?.error("❌ [getTelegramFile] Error getting file", { error });
+      return {
+        success: false,
+        error: error.message || "Unknown error",
+      };
+    }
+  },
+});
+
+/**
+ * Tool for forwarding files from one chat to another
+ */
+export const forwardTelegramDocument = createTool({
+  id: "forward-telegram-document",
+  description:
+    "Forward a document using file_id from one chat to another. More efficient than downloading and re-uploading.",
+  
+  inputSchema: z.object({
+    chatId: z.number().describe("Destination chat ID"),
+    fileId: z.string().describe("Telegram file ID to forward"),
+    caption: z.string().optional().describe("Optional caption for the document"),
+  }),
+
+  outputSchema: z.object({
+    success: z.boolean(),
+    messageId: z.number().optional(),
+    error: z.string().optional(),
+  }),
+
+  execute: async ({ context, mastra }) => {
+    const logger = mastra?.getLogger();
+    logger?.info("📎 [forwardTelegramDocument] Forwarding document", {
+      chatId: context.chatId,
+      fileId: context.fileId,
+    });
+
+    try {
+      const options: any = {};
+      
+      if (context.caption) {
+        options.caption = context.caption;
+      }
+
+      const result = await bot.sendDocument(
+        context.chatId,
+        context.fileId,
+        options
+      );
+
+      logger?.info("✅ [forwardTelegramDocument] Document forwarded successfully", {
+        messageId: result.message_id,
+      });
+
+      return {
+        success: true,
+        messageId: result.message_id,
+      };
+    } catch (error: any) {
+      logger?.error("❌ [forwardTelegramDocument] Error forwarding document", { error });
+      return {
+        success: false,
+        error: error.message || "Unknown error",
+      };
+    }
+  },
+});
+
+/**
  * Tool for editing message text (e.g., updating menus after button click)
  */
 export const editTelegramMessage = createTool({

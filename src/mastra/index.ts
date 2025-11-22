@@ -239,9 +239,12 @@ export const mastra = new Mastra({
           const threadId = `telegram-user-${triggerInfo.params.userId}`;
 
           // Determine message type
-          const messageType = triggerInfo.type === "telegram/callback_query" 
-            ? "callback_query" 
-            : "message";
+          let messageType: "message" | "callback_query" | "document" = "message";
+          if (triggerInfo.type === "telegram/callback_query") {
+            messageType = "callback_query";
+          } else if (triggerInfo.type === "telegram/document") {
+            messageType = "document";
+          }
 
           // Start the workflow
           try {
@@ -259,6 +262,10 @@ export const mastra = new Mastra({
                 callbackQueryId: triggerInfo.params.callbackQueryId,
                 callbackData: triggerInfo.params.callbackData,
                 messageType,
+                fileId: triggerInfo.params.fileId,
+                fileName: triggerInfo.params.fileName,
+                fileSize: triggerInfo.params.fileSize,
+                caption: triggerInfo.params.caption,
               },
             });
 
