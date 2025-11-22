@@ -228,106 +228,122 @@
     </div>
     
     <script>
-        const tg = window.Telegram.WebApp;
-        tg.expand();
-        tg.MainButton.setText('Сохранить и получить анализ');
-        tg.MainButton.show();
-        
-        const form = document.getElementById('financialForm');
-        const summary = document.getElementById('summary');
-        const aiAnalysis = document.getElementById('aiAnalysis');
-        const aiLoader = document.getElementById('aiLoader');
-        const aiContent = document.getElementById('aiContent');
-        
-        // Auto-update summary on input
-        form.addEventListener('input', updateSummary);
-        
-        function updateSummary() {
-            const balance = parseInt(document.getElementById('balance').value) || 0;
-            const income = parseInt(document.getElementById('income').value) || 0;
-            const expenses = parseInt(document.getElementById('expenses').value) || 0;
-            const goal = parseInt(document.getElementById('goal').value) || 0;
-            
-            if (balance || income || expenses) {
-                summary.style.display = 'block';
-                
-                document.getElementById('summaryBalance').textContent = balance.toLocaleString('ru-RU') + ' ₽';
-                document.getElementById('summaryIncome').textContent = income.toLocaleString('ru-RU') + ' ₽';
-                document.getElementById('summaryExpenses').textContent = expenses.toLocaleString('ru-RU') + ' ₽';
-                
-                const savings = income - expenses;
-                const savingsEl = document.getElementById('summarySavings');
-                savingsEl.textContent = savings.toLocaleString('ru-RU') + ' ₽';
-                savingsEl.className = 'summary-value ' + (savings > 0 ? 'positive' : savings < 0 ? 'negative' : '');
-                
-                if (goal > 0 && savings > 0) {
-                    const goalSection = document.getElementById('goalSection');
-                    const remaining = Math.max(0, goal - balance);
-                    const months = Math.ceil(remaining / savings);
-                    goalSection.style.display = 'block';
-                    document.getElementById('summaryGoalTime').textContent = months + ' мес';
-                }
-            }
-        }
-        
-        tg.MainButton.onClick(async () => {
-            const balance = parseInt(document.getElementById('balance').value) || 0;
-            const income = parseInt(document.getElementById('income').value) || 0;
-            const expenses = parseInt(document.getElementById('expenses').value) || 0;
-            const goal = parseInt(document.getElementById('goal').value) || 0;
-            const notes = document.getElementById('notes').value;
-            
-            if (!balance && !income && !expenses) {
-                tg.showAlert('Пожалуйста, заполните хотя бы одно поле');
+        // Wait for Telegram Web App SDK to load
+        function initApp() {
+            if (!window.Telegram || !window.Telegram.WebApp) {
+                console.error('Telegram Web App SDK not loaded');
+                document.body.innerHTML = '<div style="padding: 20px; text-align: center;">Ошибка загрузки. Откройте через Telegram.</div>';
                 return;
             }
             
-            tg.MainButton.showProgress();
+            const tg = window.Telegram.WebApp;
+            tg.expand();
+            tg.MainButton.setText('Сохранить и получить анализ');
+            tg.MainButton.show();
             
-            // Show AI analysis section
-            aiAnalysis.style.display = 'block';
-            aiLoader.style.display = 'block';
-            aiContent.style.display = 'none';
+            const form = document.getElementById('financialForm');
+            const summary = document.getElementById('summary');
+            const aiAnalysis = document.getElementById('aiAnalysis');
+            const aiLoader = document.getElementById('aiLoader');
+            const aiContent = document.getElementById('aiContent');
             
-            try {
-                // Send data to backend
-                const response = await fetch('/api/financial-modeling/save', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        initData: tg.initData,
-                        balance,
-                        income,
-                        expenses,
-                        goal,
-                        notes
-                    })
-                });
+            function updateSummary() {
+                const balance = parseInt(document.getElementById('balance').value) || 0;
+                const income = parseInt(document.getElementById('income').value) || 0;
+                const expenses = parseInt(document.getElementById('expenses').value) || 0;
+                const goal = parseInt(document.getElementById('goal').value) || 0;
                 
-                const result = await response.json();
-                
-                if (result.success) {
-                    // Show AI analysis
-                    aiLoader.style.display = 'none';
-                    aiContent.style.display = 'block';
-                    aiContent.textContent = result.analysis;
+                if (balance || income || expenses) {
+                    summary.style.display = 'block';
                     
-                    tg.MainButton.hideProgress();
-                    tg.showAlert('✅ Данные сохранены! Вы можете вернуться в любой момент для обновления.');
-                } else {
-                    throw new Error(result.error || 'Ошибка сохранения');
+                    document.getElementById('summaryBalance').textContent = balance.toLocaleString('ru-RU') + ' ₽';
+                    document.getElementById('summaryIncome').textContent = income.toLocaleString('ru-RU') + ' ₽';
+                    document.getElementById('summaryExpenses').textContent = expenses.toLocaleString('ru-RU') + ' ₽';
+                    
+                    const savings = income - expenses;
+                    const savingsEl = document.getElementById('summarySavings');
+                    savingsEl.textContent = savings.toLocaleString('ru-RU') + ' ₽';
+                    savingsEl.className = 'summary-value ' + (savings > 0 ? 'positive' : savings < 0 ? 'negative' : '');
+                    
+                    if (goal > 0 && savings > 0) {
+                        const goalSection = document.getElementById('goalSection');
+                        const remaining = Math.max(0, goal - balance);
+                        const months = Math.ceil(remaining / savings);
+                        goalSection.style.display = 'block';
+                        document.getElementById('summaryGoalTime').textContent = months + ' мес';
+                    }
                 }
-            } catch (error) {
-                tg.MainButton.hideProgress();
-                tg.showAlert('Ошибка: ' + error.message);
-                aiAnalysis.style.display = 'none';
             }
-        });
+            
+            // Auto-update summary on input
+            form.addEventListener('input', updateSummary);
+            
+            tg.MainButton.onClick(async () => {
+                const balance = parseInt(document.getElementById('balance').value) || 0;
+                const income = parseInt(document.getElementById('income').value) || 0;
+                const expenses = parseInt(document.getElementById('expenses').value) || 0;
+                const goal = parseInt(document.getElementById('goal').value) || 0;
+                const notes = document.getElementById('notes').value;
+                
+                if (!balance && !income && !expenses) {
+                    tg.showAlert('Пожалуйста, заполните хотя бы одно поле');
+                    return;
+                }
+                
+                tg.MainButton.showProgress();
+                
+                // Show AI analysis section
+                aiAnalysis.style.display = 'block';
+                aiLoader.style.display = 'block';
+                aiContent.style.display = 'none';
+                
+                try {
+                    // Send data to backend
+                    const response = await fetch('/api/financial-modeling/save', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            initData: tg.initData,
+                            balance,
+                            income,
+                            expenses,
+                            goal,
+                            notes
+                        })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        // Show AI analysis
+                        aiLoader.style.display = 'none';
+                        aiContent.style.display = 'block';
+                        aiContent.textContent = result.analysis;
+                        
+                        tg.MainButton.hideProgress();
+                        tg.showAlert('✅ Данные сохранены! Вы можете вернуться в любой момент для обновления.');
+                    } else {
+                        throw new Error(result.error || 'Ошибка сохранения');
+                    }
+                } catch (error) {
+                    tg.MainButton.hideProgress();
+                    tg.showAlert('Ошибка: ' + error.message);
+                    aiAnalysis.style.display = 'none';
+                }
+            });
+            
+            // Initialize summary on load
+            updateSummary();
+        }
         
-        // Initialize summary on load
-        updateSummary();
+        // Initialize app when DOM and Telegram SDK are ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initApp);
+        } else {
+            initApp();
+        }
     </script>
 </body>
 </html>
