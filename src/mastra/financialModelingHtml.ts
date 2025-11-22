@@ -2,70 +2,232 @@ export const financialModelingHtml = `<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>Финансовое моделирование</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: var(--tg-theme-bg-color, #ffffff);
-            color: var(--tg-theme-text-color, #000000);
-            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
+            padding: 16px;
         }
         .container { max-width: 600px; margin: 0 auto; }
-        h1 { font-size: 24px; margin-bottom: 8px; color: var(--tg-theme-text-color); }
-        .subtitle { font-size: 14px; color: var(--tg-theme-hint-color, #999); margin-bottom: 24px; }
-        .form-group { margin-bottom: 20px; }
-        label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 8px; color: var(--tg-theme-text-color); }
-        input, textarea {
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+        h1 { 
+            font-size: 28px; 
+            margin-bottom: 8px; 
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .subtitle { 
+            font-size: 14px; 
+            color: #666; 
+            margin-bottom: 24px; 
+        }
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .form-group { 
+            margin-bottom: 16px; 
+        }
+        label { 
+            display: block; 
+            font-size: 14px; 
+            font-weight: 500; 
+            margin-bottom: 6px; 
+            color: #333; 
+        }
+        input[type="number"], input[type="date"], input[type="text"], textarea {
             width: 100%;
             padding: 12px;
-            border: 1px solid var(--tg-theme-hint-color, #ddd);
+            border: 2px solid #e0e0e0;
             border-radius: 8px;
             font-size: 16px;
-            background: var(--tg-theme-bg-color, #fff);
-            color: var(--tg-theme-text-color, #000);
             transition: border-color 0.3s;
         }
-        input:focus, textarea:focus { outline: none; border-color: var(--tg-theme-button-color, #0088cc); }
-        textarea { min-height: 80px; resize: vertical; }
-        .input-hint { font-size: 12px; color: var(--tg-theme-hint-color, #999); margin-top: 4px; }
-        .summary {
-            background: var(--tg-theme-secondary-bg-color, #f0f0f0);
-            border-radius: 12px;
-            padding: 16px;
-            margin-top: 24px;
+        input:focus, textarea:focus { 
+            outline: none; 
+            border-color: #667eea; 
         }
-        .summary-title { font-size: 16px; font-weight: 600; margin-bottom: 12px; color: var(--tg-theme-text-color); }
-        .summary-item { display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; }
-        .summary-item.total {
-            border-top: 2px solid var(--tg-theme-hint-color, #ddd);
+        textarea { 
+            min-height: 80px; 
+            resize: vertical; 
+            font-family: inherit;
+        }
+        .input-hint { 
+            font-size: 12px; 
+            color: #999; 
+            margin-top: 4px; 
+        }
+        
+        .expense-category, .wish-item {
+            background: #f5f5f5;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 12px;
+            display: flex;
+            gap: 8px;
+            align-items: flex-start;
+        }
+        .expense-category input, .wish-item input {
+            flex: 1;
+            min-width: 0;
+        }
+        .expense-category input[type="number"], .wish-item input[type="number"] {
+            flex: 0 0 120px;
+        }
+        .btn-remove {
+            background: #f44336;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 14px;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .btn-add {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 20px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            width: 100%;
             margin-top: 8px;
-            padding-top: 12px;
-            font-weight: 600;
-            font-size: 16px;
         }
-        .summary-value { font-weight: 500; }
-        .summary-value.positive { color: #4CAF50; }
-        .summary-value.negative { color: #F44336; }
-        .ai-analysis {
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 16px 24px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 16px;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .results {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border-radius: 12px;
-            padding: 16px;
+            padding: 20px;
+        }
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .result-item:last-child {
+            border-bottom: none;
+        }
+        .result-label {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .result-value {
+            font-size: 18px;
+            font-weight: 600;
+        }
+        .result-value.big {
+            font-size: 24px;
+        }
+        .result-value.positive { color: #4CAF50; }
+        .result-value.negative { color: #ff5252; }
+        .result-value.neutral { color: #FFA726; }
+        
+        .daily-breakdown {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
             margin-top: 16px;
         }
-        .ai-title { font-size: 14px; font-weight: 600; margin-bottom: 8px; opacity: 0.9; }
-        .ai-content { font-size: 14px; line-height: 1.5; }
-        .loader { text-align: center; padding: 20px; }
+        .progress-bar {
+            height: 24px;
+            background: #e0e0e0;
+            border-radius: 12px;
+            overflow: hidden;
+            margin: 12px 0;
+            position: relative;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50 0%, #8BC34A 100%);
+            transition: width 0.5s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .progress-fill.danger {
+            background: linear-gradient(90deg, #f44336 0%, #ff5252 100%);
+        }
+        .progress-fill.warning {
+            background: linear-gradient(90deg, #FFA726 0%, #FFB74D 100%);
+        }
+        
+        .recommendation {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 16px;
+            color: #856404;
+        }
+        .recommendation.success {
+            background: #d4edda;
+            border-color: #28a745;
+            color: #155724;
+        }
+        .recommendation.danger {
+            background: #f8d7da;
+            border-color: #dc3545;
+            color: #721c24;
+        }
+        
+        .ai-analysis {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 16px;
+        }
+        .loader {
+            text-align: center;
+            padding: 20px;
+        }
         .spinner {
-            border: 3px solid rgba(255, 255, 255, 0.3);
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
             border-radius: 50%;
-            border-top: 3px solid white;
-            width: 30px;
-            height: 30px;
+            width: 40px;
+            height: 40px;
             animation: spin 1s linear infinite;
             margin: 0 auto;
         }
@@ -73,202 +235,396 @@ export const financialModelingHtml = `<!DOCTYPE html>
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        
+        .hidden { display: none; }
+        
+        .wish-status {
+            font-size: 12px;
+            margin-top: 4px;
+            font-weight: 500;
+        }
+        .wish-status.can-afford { color: #4CAF50; }
+        .wish-status.cannot-afford { color: #f44336; }
+        .wish-status.need-save { color: #FFA726; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>💰 Финансовое моделирование</h1>
-        <p class="subtitle">Введите ваши финансовые данные для анализа</p>
-        
-        <form id="financialForm">
+        <div class="card">
+            <h1>💰 Финансовое моделирование</h1>
+            <p class="subtitle">Создайте интерактивную модель и экспериментируйте со сценариями</p>
+            
+            <!-- Базовые данные -->
+            <div class="section-title">📊 Текущая ситуация</div>
+            
             <div class="form-group">
-                <label for="balance">Текущий баланс (₽)</label>
-                <input type="number" id="balance" placeholder="50000" required>
-                <div class="input-hint">Сколько денег у вас сейчас есть</div>
+                <label for="currentBalance">Текущий баланс (₽)</label>
+                <input type="number" id="currentBalance" placeholder="30000" value="30000">
+                <div class="input-hint">Сколько денег у вас сейчас</div>
             </div>
             
             <div class="form-group">
-                <label for="income">Месячный доход (₽)</label>
-                <input type="number" id="income" placeholder="80000" required>
-                <div class="input-hint">Сколько вы зарабатываете в месяц</div>
+                <label for="nextIncome">Следующий доход (₽)</label>
+                <input type="number" id="nextIncome" placeholder="60000" value="60000">
+                <div class="input-hint">Размер следующей зарплаты/дохода</div>
             </div>
             
             <div class="form-group">
-                <label for="expenses">Месячные расходы (₽)</label>
-                <input type="number" id="expenses" placeholder="60000" required>
-                <div class="input-hint">Сколько вы тратите в месяц</div>
+                <label for="nextIncomeDate">Дата следующего дохода</label>
+                <input type="date" id="nextIncomeDate">
+                <div class="input-hint">Когда придет следующая зарплата</div>
             </div>
             
-            <div class="form-group">
-                <label for="goal">Цель накоплений (₽, необязательно)</label>
-                <input type="number" id="goal" placeholder="500000">
-                <div class="input-hint">Сколько хотите накопить</div>
+            <!-- Необходимые расходы -->
+            <div class="section-title">🏠 Необходимые расходы</div>
+            <div id="expensesContainer">
+                <div class="expense-category">
+                    <input type="text" placeholder="Категория (например, Еда)" value="Еда">
+                    <input type="number" placeholder="Сумма" value="15000">
+                    <button class="btn-remove" onclick="removeExpense(this)">✕</button>
+                </div>
+                <div class="expense-category">
+                    <input type="text" placeholder="Категория (например, Транспорт)" value="Транспорт">
+                    <input type="number" placeholder="Сумма" value="5000">
+                    <button class="btn-remove" onclick="removeExpense(this)">✕</button>
+                </div>
             </div>
+            <button class="btn-add" onclick="addExpense()">+ Добавить расход</button>
             
-            <div class="form-group">
-                <label for="notes">Дополнительные заметки (необязательно)</label>
-                <textarea id="notes" placeholder="Например: планирую покупку авто через год"></textarea>
+            <!-- Хотелки -->
+            <div class="section-title" style="margin-top: 24px;">✨ Желаемые покупки</div>
+            <div id="wishesContainer">
+                <div class="wish-item">
+                    <input type="text" placeholder="Что хотите купить" value="Новый телефон">
+                    <input type="number" placeholder="Цена" value="40000">
+                    <button class="btn-remove" onclick="removeWish(this)">✕</button>
+                </div>
             </div>
-        </form>
-        
-        <div class="summary" id="summary" style="display: none;">
-            <div class="summary-title">📊 Ваша финансовая модель</div>
-            <div class="summary-item">
-                <span>Текущий баланс:</span>
-                <span class="summary-value" id="summaryBalance">0 ₽</span>
-            </div>
-            <div class="summary-item">
-                <span>Доход в месяц:</span>
-                <span class="summary-value positive" id="summaryIncome">0 ₽</span>
-            </div>
-            <div class="summary-item">
-                <span>Расходы в месяц:</span>
-                <span class="summary-value negative" id="summaryExpenses">0 ₽</span>
-            </div>
-            <div class="summary-item total">
-                <span>Ежемесячная экономия:</span>
-                <span class="summary-value" id="summarySavings">0 ₽</span>
-            </div>
-            <div class="summary-item" id="goalSection" style="display: none;">
-                <span>До цели:</span>
-                <span class="summary-value" id="summaryGoalTime">0 мес</span>
-            </div>
+            <button class="btn-add" onclick="addWish()">+ Добавить желание</button>
+            
+            <button class="btn-primary" onclick="calculate()">🔮 Рассчитать модель</button>
         </div>
         
-        <div class="ai-analysis" id="aiAnalysis" style="display: none;">
-            <div class="ai-title">🤖 AI Анализ</div>
-            <div class="loader" id="aiLoader">
-                <div class="spinner"></div>
+        <!-- Результаты -->
+        <div id="resultsCard" class="card hidden">
+            <div class="results">
+                <div class="result-item">
+                    <span class="result-label">💰 Текущий баланс</span>
+                    <span class="result-value big" id="displayBalance">0 ₽</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">📅 Дней до зарплаты</span>
+                    <span class="result-value" id="daysUntilIncome">0</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">💸 Всего расходов</span>
+                    <span class="result-value negative" id="totalExpenses">0 ₽</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">📊 Остаток после расходов</span>
+                    <span class="result-value" id="afterExpenses">0 ₽</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">💵 Средний расход в день</span>
+                    <span class="result-value" id="dailyBurn">0 ₽</span>
+                </div>
             </div>
-            <div class="ai-content" id="aiContent" style="display: none;"></div>
+            
+            <div class="daily-breakdown">
+                <div class="section-title">📈 Прогноз по дням</div>
+                <div id="dailyProgress"></div>
+            </div>
+            
+            <div id="wishesResults"></div>
+            
+            <div id="recommendations"></div>
+            
+            <button class="btn-primary" onclick="saveAndAnalyze()" id="saveBtn">
+                💾 Сохранить и получить AI рекомендации
+            </button>
+        </div>
+        
+        <!-- AI Анализ -->
+        <div id="aiCard" class="card hidden">
+            <div class="ai-analysis">
+                <div class="section-title">🤖 AI Рекомендации</div>
+                <div class="loader" id="aiLoader">
+                    <div class="spinner"></div>
+                    <p style="margin-top: 12px; color: #666;">Анализирую вашу ситуацию...</p>
+                </div>
+                <div id="aiContent" class="hidden" style="line-height: 1.6; color: #333;"></div>
+            </div>
         </div>
     </div>
     
     <script>
-        let initAttempts = 0;
-        const MAX_INIT_ATTEMPTS = 10;
+        // Установка даты по умолчанию (через 15 дней)
+        const defaultDate = new Date();
+        defaultDate.setDate(defaultDate.getDate() + 15);
+        document.getElementById('nextIncomeDate').value = defaultDate.toISOString().split('T')[0];
         
-        function initApp() {
-            initAttempts++;
-            console.log('initApp attempt', initAttempts, {
-                hasTelegram: !!window.Telegram,
-                hasWebApp: !!(window.Telegram && window.Telegram.WebApp),
-                location: window.location.href
+        function addExpense() {
+            const container = document.getElementById('expensesContainer');
+            const div = document.createElement('div');
+            div.className = 'expense-category';
+            div.innerHTML = \`
+                <input type="text" placeholder="Категория">
+                <input type="number" placeholder="Сумма">
+                <button class="btn-remove" onclick="removeExpense(this)">✕</button>
+            \`;
+            container.appendChild(div);
+        }
+        
+        function removeExpense(btn) {
+            const container = document.getElementById('expensesContainer');
+            if (container.children.length > 1) {
+                btn.parentElement.remove();
+            }
+        }
+        
+        function addWish() {
+            const container = document.getElementById('wishesContainer');
+            const div = document.createElement('div');
+            div.className = 'wish-item';
+            div.innerHTML = \`
+                <input type="text" placeholder="Что хотите купить">
+                <input type="number" placeholder="Цена">
+                <button class="btn-remove" onclick="removeWish(this)">✕</button>
+            \`;
+            container.appendChild(div);
+        }
+        
+        function removeWish(btn) {
+            btn.parentElement.remove();
+        }
+        
+        function getExpenses() {
+            const expenses = [];
+            document.querySelectorAll('#expensesContainer .expense-category').forEach(el => {
+                const name = el.children[0].value;
+                const amount = parseFloat(el.children[1].value) || 0;
+                if (name && amount > 0) {
+                    expenses.push({ name, amount });
+                }
             });
+            return expenses;
+        }
+        
+        function getWishes() {
+            const wishes = [];
+            document.querySelectorAll('#wishesContainer .wish-item').forEach(el => {
+                const name = el.children[0].value;
+                const price = parseFloat(el.children[1].value) || 0;
+                if (name && price > 0) {
+                    wishes.push({ name, price });
+                }
+            });
+            return wishes;
+        }
+        
+        function calculate() {
+            const currentBalance = parseFloat(document.getElementById('currentBalance').value) || 0;
+            const nextIncome = parseFloat(document.getElementById('nextIncome').value) || 0;
+            const nextIncomeDate = new Date(document.getElementById('nextIncomeDate').value);
             
-            if (!window.Telegram || !window.Telegram.WebApp) {
-                if (initAttempts < MAX_INIT_ATTEMPTS) {
-                    console.warn('Telegram Web App SDK not loaded - retrying in 500ms...');
-                    setTimeout(initApp, 500);
-                    return;
+            const expenses = getExpenses();
+            const wishes = getWishes();
+            
+            const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+            const afterExpenses = currentBalance - totalExpenses;
+            
+            const today = new Date();
+            const daysUntilIncome = Math.max(1, Math.ceil((nextIncomeDate - today) / (1000 * 60 * 60 * 24)));
+            const dailyBurn = totalExpenses / daysUntilIncome;
+            
+            // Обновление результатов
+            document.getElementById('displayBalance').textContent = currentBalance.toLocaleString('ru-RU') + ' ₽';
+            document.getElementById('daysUntilIncome').textContent = daysUntilIncome + ' дней';
+            document.getElementById('totalExpenses').textContent = totalExpenses.toLocaleString('ru-RU') + ' ₽';
+            
+            const afterExpensesEl = document.getElementById('afterExpenses');
+            afterExpensesEl.textContent = afterExpenses.toLocaleString('ru-RU') + ' ₽';
+            afterExpensesEl.className = 'result-value ' + (afterExpenses > 0 ? 'positive' : afterExpenses < 0 ? 'negative' : 'neutral');
+            
+            document.getElementById('dailyBurn').textContent = dailyBurn.toLocaleString('ru-RU') + ' ₽/день';
+            
+            // Прогресс по дням
+            const progressHtml = [];
+            let remainingBalance = currentBalance;
+            
+            for (let day = 0; day <= daysUntilIncome && day < 30; day++) {
+                const dayExpense = dailyBurn;
+                remainingBalance -= dayExpense;
+                const percentage = Math.max(0, Math.min(100, (remainingBalance / currentBalance) * 100));
+                const status = remainingBalance > 0 ? (percentage > 30 ? '' : 'warning') : 'danger';
+                
+                if (day % 5 === 0 || day === daysUntilIncome - 1) {
+                    progressHtml.push(\`
+                        <div style="margin: 8px 0;">
+                            <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;">
+                                <span>День \${day + 1}</span>
+                                <span>\${remainingBalance.toLocaleString('ru-RU')} ₽</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill \${status}" style="width: \${percentage}%">
+                                    \${percentage > 20 ? percentage.toFixed(0) + '%' : ''}
+                                </div>
+                            </div>
+                        </div>
+                    \`);
+                }
+            }
+            
+            document.getElementById('dailyProgress').innerHTML = progressHtml.join('');
+            
+            // Анализ хотелок
+            const wishesHtml = wishes.map(wish => {
+                let status = '', statusClass = '', message = '';
+                if (afterExpenses >= wish.price) {
+                    status = '✅ Можете позволить сейчас!';
+                    statusClass = 'can-afford';
+                    message = \`У вас останется \${(afterExpenses - wish.price).toLocaleString('ru-RU')} ₽ после покупки.\`;
+                } else if (currentBalance >= wish.price) {
+                    status = '⚠️ Хватит, но придется экономить';
+                    statusClass = 'need-save';
+                    const deficit = wish.price - afterExpenses;
+                    message = \`Нужно сэкономить \${deficit.toLocaleString('ru-RU')} ₽ на расходах.\`;
                 } else {
-                    console.error('Failed to load Telegram SDK after', MAX_INIT_ATTEMPTS, 'attempts');
-                    document.body.innerHTML = '<div style="padding: 20px; text-align: center; color: #F44336;">❌ Ошибка загрузки SDK Telegram.<br><br>Откройте эту страницу через кнопку в Telegram боте.</div>';
-                    return;
+                    status = '❌ Пока не хватает';
+                    statusClass = 'cannot-afford';
+                    const deficit = wish.price - currentBalance;
+                    const monthsToSave = Math.ceil(deficit / Math.max(1, nextIncome - totalExpenses));
+                    message = \`Не хватает \${deficit.toLocaleString('ru-RU')} ₽. Накопите за ~\${monthsToSave} мес.\`;
                 }
+                
+                return \`
+                    <div style="background: #f5f5f5; padding: 12px; border-radius: 8px; margin: 8px 0;">
+                        <div style="font-weight: 600; margin-bottom: 4px;">\${wish.name} — \${wish.price.toLocaleString('ru-RU')} ₽</div>
+                        <div class="wish-status \${statusClass}">\${status}</div>
+                        <div style="font-size: 13px; color: #666; margin-top: 4px;">\${message}</div>
+                    </div>
+                \`;
+            }).join('');
+            
+            if (wishesHtml) {
+                document.getElementById('wishesResults').innerHTML = \`
+                    <div class="daily-breakdown">
+                        <div class="section-title">✨ Анализ желаний</div>
+                        \${wishesHtml}
+                    </div>
+                \`;
             }
             
-            console.log('✅ Telegram WebApp SDK loaded successfully!');
-            const tg = window.Telegram.WebApp;
-            tg.expand();
-            tg.MainButton.setText('Сохранить и получить анализ');
-            tg.MainButton.show();
-            
-            const form = document.getElementById('financialForm');
-            const summary = document.getElementById('summary');
-            const aiAnalysis = document.getElementById('aiAnalysis');
-            const aiLoader = document.getElementById('aiLoader');
-            const aiContent = document.getElementById('aiContent');
-            
-            function updateSummary() {
-                const balance = parseInt(document.getElementById('balance').value) || 0;
-                const income = parseInt(document.getElementById('income').value) || 0;
-                const expenses = parseInt(document.getElementById('expenses').value) || 0;
-                const goal = parseInt(document.getElementById('goal').value) || 0;
-                
-                if (balance || income || expenses) {
-                    summary.style.display = 'block';
-                    
-                    document.getElementById('summaryBalance').textContent = balance.toLocaleString('ru-RU') + ' ₽';
-                    document.getElementById('summaryIncome').textContent = income.toLocaleString('ru-RU') + ' ₽';
-                    document.getElementById('summaryExpenses').textContent = expenses.toLocaleString('ru-RU') + ' ₽';
-                    
-                    const savings = income - expenses;
-                    const savingsEl = document.getElementById('summarySavings');
-                    savingsEl.textContent = savings.toLocaleString('ru-RU') + ' ₽';
-                    savingsEl.className = 'summary-value ' + (savings > 0 ? 'positive' : savings < 0 ? 'negative' : '');
-                    
-                    if (goal > 0 && savings > 0) {
-                        const goalSection = document.getElementById('goalSection');
-                        const remaining = Math.max(0, goal - balance);
-                        const months = Math.ceil(remaining / savings);
-                        goalSection.style.display = 'block';
-                        document.getElementById('summaryGoalTime').textContent = months + ' мес';
-                    }
-                }
+            // Рекомендации
+            let recommendationHtml = '';
+            if (afterExpenses < 0) {
+                recommendationHtml = \`
+                    <div class="recommendation danger">
+                        <strong>⚠️ Внимание!</strong> Ваших денег не хватит на все расходы. 
+                        Нужно сократить расходы на \${Math.abs(afterExpenses).toLocaleString('ru-RU')} ₽ 
+                        или найти дополнительный доход.
+                    </div>
+                \`;
+            } else if (afterExpenses < currentBalance * 0.2) {
+                recommendationHtml = \`
+                    <div class="recommendation">
+                        <strong>💡 Совет:</strong> Остается мало средств (\${afterExpenses.toLocaleString('ru-RU')} ₽). 
+                        Попробуйте сэкономить на некритичных категориях расходов.
+                    </div>
+                \`;
+            } else {
+                recommendationHtml = \`
+                    <div class="recommendation success">
+                        <strong>✅ Отлично!</strong> У вас останется \${afterExpenses.toLocaleString('ru-RU')} ₽ после всех расходов. 
+                        Это \${((afterExpenses/currentBalance)*100).toFixed(0)}% от текущего баланса.
+                    </div>
+                \`;
             }
             
-            form.addEventListener('input', updateSummary);
+            document.getElementById('recommendations').innerHTML = recommendationHtml;
             
-            tg.MainButton.onClick(async () => {
-                const balance = parseInt(document.getElementById('balance').value) || 0;
-                const income = parseInt(document.getElementById('income').value) || 0;
-                const expenses = parseInt(document.getElementById('expenses').value) || 0;
-                const goal = parseInt(document.getElementById('goal').value) || 0;
-                const notes = document.getElementById('notes').value;
-                
-                if (!balance && !income && !expenses) {
-                    tg.showAlert('Пожалуйста, заполните хотя бы одно поле');
-                    return;
-                }
-                
-                tg.MainButton.showProgress();
-                
-                aiAnalysis.style.display = 'block';
-                aiLoader.style.display = 'block';
-                aiContent.style.display = 'none';
-                
-                try {
-                    const response = await fetch('/api/financial-modeling/save', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            initData: tg.initData,
-                            balance,
-                            income,
-                            expenses,
-                            goal,
-                            notes
-                        })
-                    });
-                    
-                    const result = await response.json();
-                    
-                    if (result.success) {
-                        aiLoader.style.display = 'none';
-                        aiContent.style.display = 'block';
-                        aiContent.textContent = result.analysis;
-                        
-                        tg.MainButton.hideProgress();
-                        tg.showAlert('✅ Данные сохранены! Вы можете вернуться в любой момент для обновления.');
-                    } else {
-                        throw new Error(result.error || 'Ошибка сохранения');
-                    }
-                } catch (error) {
-                    tg.MainButton.hideProgress();
-                    tg.showAlert('Ошибка: ' + error.message);
-                    aiAnalysis.style.display = 'none';
-                }
-            });
-            
-            updateSummary();
+            document.getElementById('resultsCard').classList.remove('hidden');
+            document.getElementById('resultsCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
         
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', initApp);
-        } else {
-            initApp();
+        async function saveAndAnalyze() {
+            const saveBtn = document.getElementById('saveBtn');
+            saveBtn.disabled = true;
+            saveBtn.textContent = '⏳ Сохранение...';
+            
+            const currentBalance = parseFloat(document.getElementById('currentBalance').value) || 0;
+            const nextIncome = parseFloat(document.getElementById('nextIncome').value) || 0;
+            const nextIncomeDate = document.getElementById('nextIncomeDate').value;
+            const expenses = getExpenses();
+            const wishes = getWishes();
+            const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+            
+            const urlParams = new URLSearchParams(window.location.search);
+            const userId = urlParams.get('userId');
+            const orderId = urlParams.get('orderId');
+            
+            document.getElementById('aiCard').classList.remove('hidden');
+            document.getElementById('aiLoader').classList.remove('hidden');
+            document.getElementById('aiContent').classList.add('hidden');
+            document.getElementById('aiCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            
+            try {
+                const response = await fetch('/api/financial-modeling/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId,
+                        orderId,
+                        currentBalance,
+                        nextIncome,
+                        nextIncomeDate,
+                        expenses,
+                        wishes,
+                        totalExpenses
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    document.getElementById('aiLoader').classList.add('hidden');
+                    document.getElementById('aiContent').classList.remove('hidden');
+                    document.getElementById('aiContent').innerHTML = result.analysis.replace(/\\n/g, '<br>');
+                    saveBtn.textContent = '✅ Сохранено!';
+                } else {
+                    throw new Error(result.error || 'Ошибка сохранения');
+                }
+            } catch (error) {
+                alert('Ошибка: ' + error.message);
+                saveBtn.disabled = false;
+                saveBtn.textContent = '💾 Сохранить и получить AI рекомендации';
+                document.getElementById('aiCard').classList.add('hidden');
+            }
         }
+        
+        // Автоматический пересчет при изменении
+        document.getElementById('currentBalance').addEventListener('input', () => {
+            if (!document.getElementById('resultsCard').classList.contains('hidden')) {
+                calculate();
+            }
+        });
+        document.getElementById('nextIncome').addEventListener('input', () => {
+            if (!document.getElementById('resultsCard').classList.contains('hidden')) {
+                calculate();
+            }
+        });
+        document.getElementById('nextIncomeDate').addEventListener('change', () => {
+            if (!document.getElementById('resultsCard').classList.contains('hidden')) {
+                calculate();
+            }
+        });
+        
+        // Обновление при изменении полей
+        setInterval(() => {
+            if (!document.getElementById('resultsCard').classList.contains('hidden')) {
+                calculate();
+            }
+        }, 2000);
     </script>
 </body>
 </html>`;

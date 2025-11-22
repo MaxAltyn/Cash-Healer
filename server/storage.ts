@@ -257,30 +257,34 @@ export async function getPaymentByOrderId(orderId: number) {
 
 export async function createOrUpdateFinancialModel(data: {
   userId: number;
+  orderId?: number | null;
   currentBalance: number;
-  monthlyIncome: number;
-  monthlyExpenses: number;
-  savingsGoal?: number;
-  notes?: string;
+  nextIncome: number;
+  nextIncomeDate?: string | null;
+  expenses: string; // JSON string
+  wishes: string; // JSON string
+  totalExpenses: number;
 }) {
-  // Check if model exists for user
+  // Check if model exists for user (get most recent)
   const existing = await db.query.financialModels.findFirst({
     where: (models, { eq }) => eq(models.userId, data.userId),
+    orderBy: (models, { desc }) => [desc(models.createdAt)],
   });
 
-  if (existing) {
-    // Update existing model
+  if (existing && data.orderId && existing.orderId === data.orderId) {
+    // Update existing model if same order
     const [updated] = await db
       .update(schema.financialModels)
       .set({
         currentBalance: data.currentBalance,
-        monthlyIncome: data.monthlyIncome,
-        monthlyExpenses: data.monthlyExpenses,
-        savingsGoal: data.savingsGoal,
-        notes: data.notes,
+        nextIncome: data.nextIncome,
+        nextIncomeDate: data.nextIncomeDate,
+        expenses: data.expenses,
+        wishes: data.wishes,
+        totalExpenses: data.totalExpenses,
         updatedAt: new Date(),
       })
-      .where(eq(schema.financialModels.userId, data.userId))
+      .where(eq(schema.financialModels.id, existing.id))
       .returning();
     return updated;
   }
@@ -290,11 +294,13 @@ export async function createOrUpdateFinancialModel(data: {
     .insert(schema.financialModels)
     .values({
       userId: data.userId,
+      orderId: data.orderId,
       currentBalance: data.currentBalance,
-      monthlyIncome: data.monthlyIncome,
-      monthlyExpenses: data.monthlyExpenses,
-      savingsGoal: data.savingsGoal,
-      notes: data.notes,
+      nextIncome: data.nextIncome,
+      nextIncomeDate: data.nextIncomeDate,
+      expenses: data.expenses,
+      wishes: data.wishes,
+      totalExpenses: data.totalExpenses,
     })
     .returning();
   return newModel;

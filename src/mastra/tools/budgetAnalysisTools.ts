@@ -10,13 +10,16 @@ const openai = createOpenAI({
 
 export const analyzeBudgetTool = createTool({
   id: "analyze-budget",
-  description: "Analyze user's financial model and provide personalized recommendations",
+  description: "Analyze user's financial model with detailed expense breakdown and provide personalized recommendations for achieving goals",
   inputSchema: z.object({
     currentBalance: z.number().describe("Current balance in rubles"),
-    monthlyIncome: z.number().describe("Monthly income in rubles"),
-    monthlyExpenses: z.number().describe("Monthly expenses in rubles"),
-    savingsGoal: z.number().optional().describe("Savings goal in rubles"),
-    notes: z.string().optional().describe("Additional notes from user"),
+    nextIncome: z.number().describe("Next expected income in rubles"),
+    daysUntilIncome: z.number().describe("Days until next income"),
+    totalExpenses: z.number().describe("Total planned expenses in rubles"),
+    afterExpenses: z.number().describe("Balance after expenses in rubles"),
+    dailyBudget: z.number().describe("Daily budget available in rubles"),
+    expenses: z.string().optional().describe("List of expense categories with amounts"),
+    wishes: z.string().optional().describe("List of desired purchases with prices"),
   }),
   outputSchema: z.object({
     success: z.boolean(),
@@ -27,45 +30,35 @@ export const analyzeBudgetTool = createTool({
   execute: async ({ context, mastra }) => {
     const logger = mastra?.getLogger();
     logger?.info("🤖 [analyzeBudgetTool] Analyzing budget", {
-      income: context.monthlyIncome,
-      expenses: context.monthlyExpenses,
+      currentBalance: context.currentBalance,
+      totalExpenses: context.totalExpenses,
+      daysUntilIncome: context.daysUntilIncome,
     });
 
     try {
-      const monthlySavings = context.monthlyIncome - context.monthlyExpenses;
-      const savingsRate = context.monthlyIncome > 0 
-        ? ((monthlySavings / context.monthlyIncome) * 100).toFixed(1)
-        : "0";
+      const prompt = `Ты финансовый консультант для студентов. Проанализируй детальную финансовую ситуацию пользователя и дай персонализированные рекомендации (4-6 предложений).
 
-      let goalAnalysis = "";
-      if (context.savingsGoal && context.savingsGoal > 0 && monthlySavings > 0) {
-        const remaining = Math.max(0, context.savingsGoal - context.currentBalance);
-        const monthsToGoal = Math.ceil(remaining / monthlySavings);
-        goalAnalysis = `\n\nЦель накоплений: ${context.savingsGoal.toLocaleString('ru-RU')} ₽\nОстаток до цели: ${remaining.toLocaleString('ru-RU')} ₽\nДо цели: ${monthsToGoal} месяцев`;
-      }
-
-      const prompt = `Ты финансовый консультант для студентов. Проанализируй финансовую ситуацию пользователя и дай краткие практические рекомендации (максимум 4-5 предложений).
-
-Данные пользователя:
+Текущая ситуация:
 - Текущий баланс: ${context.currentBalance.toLocaleString('ru-RU')} ₽
-- Месячный доход: ${context.monthlyIncome.toLocaleString('ru-RU')} ₽
-- Месячные расходы: ${context.monthlyExpenses.toLocaleString('ru-RU')} ₽
-- Ежемесячная экономия: ${monthlySavings.toLocaleString('ru-RU')} ₽ (${savingsRate}% от дохода)${goalAnalysis}
-${context.notes ? `\nЗаметки: ${context.notes}` : ''}
+- Дней до следующего дохода: ${context.daysUntilIncome}
+- Следующий доход: ${context.nextIncome.toLocaleString('ru-RU')} ₽
+- Всего запланированных расходов: ${context.totalExpenses.toLocaleString('ru-RU')} ₽
+- Остаток после расходов: ${context.afterExpenses.toLocaleString('ru-RU')} ₽
+- Средний дневной бюджет: ${context.dailyBudget.toLocaleString('ru-RU')} ₽${context.expenses ? `\n\nКатегории расходов: ${context.expenses}` : ''}${context.wishes ? `\n\nЖелаемые покупки: ${context.wishes}` : ''}
 
 Дай конкретные советы по:
-1. Оптимизации расходов (если экономия < 20% от дохода)
-2. Достижению финансовых целей
-3. Формированию финансовой подушки безопасности
+1. Реалистичности планов (хватит ли денег до зарплаты)
+2. Возможности реализовать желаемые покупки${context.afterExpenses < 0 ? '\n3. Как сократить расходы чтобы не уйти в минус' : ''}${context.wishes ? '\n4. На чем можно сэкономить для достижения желаний' : ''}
+5. Формированию подушки безопасности
 
-Будь кратким, понятным и мотивирующим. Пиши как друг, а не как банкир.`;
+Будь конкретным, понятным и мотивирующим. Пиши как друг, а не как банкир. Если ситуация критическая - говори прямо.`;
 
       logger?.info("🤖 [analyzeBudgetTool] Generating AI analysis");
 
       const { text } = await generateText({
         model: openai.responses("gpt-4o-mini"),
         prompt,
-        maxTokens: 300,
+        maxTokens: 400,
       });
 
       logger?.info("✅ [analyzeBudgetTool] Analysis generated", {

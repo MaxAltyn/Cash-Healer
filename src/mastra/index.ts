@@ -250,68 +250,72 @@ export const mastra = new Mastra({
           try {
             const body = await c.req.json();
             logger?.info("📊 [Financial Modeling] Received data", { 
-              hasInitData: !!body.initData,
-              balance: body.balance,
+              userId: body.userId,
+              orderId: body.orderId,
+              currentBalance: body.currentBalance,
+              expensesCount: body.expenses?.length,
+              wishesCount: body.wishes?.length,
             });
 
-            // Parse Telegram initData (verify user)
-            const initData = body.initData;
-            if (!initData) {
-              return c.json({ success: false, error: "Missing initData" }, 401);
+            // Validate required fields
+            if (!body.userId) {
+              return c.json({ success: false, error: "Missing userId" }, 400);
             }
 
-            // Parse initData to get user info (simplified - in production use crypto verification)
-            const params = new URLSearchParams(initData);
-            const userJson = params.get("user");
-            if (!userJson) {
-              return c.json({ success: false, error: "Invalid user data" }, 401);
-            }
+            const userId = parseInt(body.userId);
+            const orderId = body.orderId ? parseInt(body.orderId) : null;
 
-            const user = JSON.parse(userJson);
-            const telegramId = user.id.toString();
-
-            logger?.info("👤 [Financial Modeling] User identified", {
-              telegramId,
-              username: user.username,
+            logger?.info("👤 [Financial Modeling] Processing for user", {
+              userId,
+              orderId,
             });
-
-            // Get user from database
-            const { getUserByTelegramId, createOrUpdateFinancialModel } = await import("../../server/storage");
-            const dbUser = await getUserByTelegramId(telegramId);
-
-            if (!dbUser) {
-              return c.json({ success: false, error: "User not found" }, 404);
-            }
-
-            // Convert to kopecks (cents)
-            const balanceKopecks = Math.round((body.balance || 0) * 100);
-            const incomeKopecks = Math.round((body.income || 0) * 100);
-            const expensesKopecks = Math.round((body.expenses || 0) * 100);
-            const goalKopecks = body.goal ? Math.round(body.goal * 100) : 0;
 
             // Save financial model
+            const { createOrUpdateFinancialModel } = await import("../../server/storage");
             const model = await createOrUpdateFinancialModel({
-              userId: dbUser.id,
-              currentBalance: balanceKopecks,
-              monthlyIncome: incomeKopecks,
-              monthlyExpenses: expensesKopecks,
-              savingsGoal: goalKopecks,
-              notes: body.notes || "",
+              userId,
+              orderId,
+              currentBalance: Math.round(body.currentBalance || 0),
+              nextIncome: Math.round(body.nextIncome || 0),
+              nextIncomeDate: body.nextIncomeDate || null,
+              expenses: JSON.stringify(body.expenses || []),
+              wishes: JSON.stringify(body.wishes || []),
+              totalExpenses: Math.round(body.totalExpenses || 0),
             });
 
             logger?.info("✅ [Financial Modeling] Model saved", { modelId: model.id });
 
-            // Generate AI analysis
+            // Generate AI analysis with new structure
             const { analyzeBudgetTool } = await import("./tools/budgetAnalysisTools");
+            
+            const expensesList = (body.expenses || []).map((e: any) => 
+              `${e.name}: ${e.amount}₽`
+            ).join(', ');
+            
+            const wishesList = (body.wishes || []).map((w: any) => 
+              `${w.name} (${w.price}₽)`
+            ).join(', ');
+
+            const today = new Date();
+            const incomeDate = body.nextIncomeDate ? new Date(body.nextIncomeDate) : new Date();
+            const daysUntilIncome = Math.max(1, Math.ceil((incomeDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
+            
+            const afterExpenses = body.currentBalance - body.totalExpenses;
+            const dailyBudget = body.currentBalance / daysUntilIncome;
+
             const analysisResult = await analyzeBudgetTool.execute({
               context: {
-                currentBalance: body.balance || 0,
-                monthlyIncome: body.income || 0,
-                monthlyExpenses: body.expenses || 0,
-                savingsGoal: body.goal,
-                notes: body.notes,
+                currentBalance: body.currentBalance || 0,
+                nextIncome: body.nextIncome || 0,
+                daysUntilIncome,
+                totalExpenses: body.totalExpenses || 0,
+                afterExpenses,
+                dailyBudget,
+                expenses: expensesList,
+                wishes: wishesList,
               },
               mastra,
+              runtimeContext: c as any,
             });
 
             if (!analysisResult.success) {
@@ -323,7 +327,7 @@ export const mastra = new Mastra({
               analysis: analysisResult.analysis,
             });
           } catch (error: any) {
-            logger?.error("❌ [Financial Modeling] Error", { error });
+            logger?.error("❌ [Financial Modeling] Error", { error: error.message, stack: error.stack });
             return c.json(
               { success: false, error: error.message },
               500

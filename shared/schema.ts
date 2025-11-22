@@ -87,11 +87,13 @@ export const paymentsRelations = relations(payments, ({ one }) => ({
 export const financialModels = pgTable("financial_models", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull().references(() => users.id),
-  currentBalance: integer("current_balance").notNull().default(0), // Текущий баланс в копейках
-  monthlyIncome: integer("monthly_income").notNull().default(0), // Месячный доход в копейках
-  monthlyExpenses: integer("monthly_expenses").notNull().default(0), // Месячные расходы в копейках
-  savingsGoal: integer("savings_goal").default(0), // Цель накоплений в копейках
-  notes: text("notes"), // Дополнительные заметки
+  orderId: integer("order_id").references(() => orders.id),
+  currentBalance: integer("current_balance").notNull().default(0), // Текущий баланс в рублях
+  nextIncome: integer("next_income").notNull().default(0), // Следующий доход в рублях
+  nextIncomeDate: varchar("next_income_date", { length: 50 }), // Дата следующего дохода (ISO string)
+  expenses: text("expenses"), // JSON массив категорий расходов [{name, amount}]
+  wishes: text("wishes"), // JSON массив желаний [{name, price}]
+  totalExpenses: integer("total_expenses").default(0), // Сумма всех расходов в рублях
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

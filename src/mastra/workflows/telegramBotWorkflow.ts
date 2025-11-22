@@ -655,19 +655,20 @@ const confirmPayment = createStep({
         runtimeContext,
       });
     } else {
-      // Financial Modeling - отправляем ссылку на Mini App
-      const miniAppUrl = `https://${process.env.REPLIT_DEV_DOMAIN || `${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`}/financial-modeling.html`;
+      // Financial Modeling - отправляем ссылку на калькулятор
+      const baseUrl = `https://${process.env.REPLIT_DEV_DOMAIN || `${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`}`;
+      const calculatorUrl = `${baseUrl}/financial-modeling.html?userId=${inputData.userId}&orderId=${inputData.orderId}`;
       
-      logger?.info("📱 [confirmPayment] Sending Mini App link", { miniAppUrl });
+      logger?.info("📱 [confirmPayment] Sending calculator link", { calculatorUrl });
       
       try {
         const sendResult = await sendTelegramMessage.execute({
           context: {
             chatId: inputData.chatId,
-            text: "✅ *Оплата получена!*\n\n💰 Финансовое моделирование доступно!\n\n📊 Введите ваши финансовые данные и получите персональный AI-анализ бюджета с рекомендациями.\n\nНажмите кнопку ниже, чтобы открыть калькулятор:",
+            text: "✅ *Оплата получена!*\n\n💰 Финансовое моделирование доступно!\n\n📊 Создайте интерактивную модель:\n• Добавьте категории расходов\n• Укажите желаемые покупки\n• Экспериментируйте со сценариями\n• Получите персональный AI-анализ\n\nНажмите кнопку ниже, чтобы открыть калькулятор:",
             inlineKeyboard: [[{
               text: "🚀 Открыть калькулятор",
-              web_app: { url: miniAppUrl },
+              url: calculatorUrl,
             }]],
             parseMode: "Markdown",
           },
@@ -679,7 +680,7 @@ const confirmPayment = createStep({
           error: sendResult.error,
         });
       } catch (error: any) {
-        logger?.error("❌ [confirmPayment] Failed to send Mini App message", { 
+        logger?.error("❌ [confirmPayment] Failed to send calculator message", { 
           error: error.message,
           stack: error.stack,
         });
