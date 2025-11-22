@@ -12,6 +12,7 @@ import { inngest, inngestServe } from "./inngest";
 import { telegramBotWorkflow } from "./workflows/telegramBotWorkflow";
 import { financialBotAgent } from "./agents/financialBotAgent";
 import { registerTelegramTrigger } from "../triggers/telegramTriggers";
+import { financialModelingHtml } from "./financialModelingHtml";
 
 // Import tools
 import { sendTelegramMessage } from "./tools/telegramTools";
@@ -221,6 +222,21 @@ export const mastra = new Mastra({
       // 2. Import at the top: import { registerLinearTrigger } from "../triggers/exampleConnectorTrigger";
       //
       // ======================================================================
+
+      // ======================================================================
+      // FINANCIAL MODELING MINI APP STATIC FILE
+      // ======================================================================
+      {
+        path: "/financial-modeling.html",
+        method: "GET",
+        createHandler: async () => async (c) => {
+          return new Response(financialModelingHtml, {
+            headers: {
+              'Content-Type': 'text/html; charset=utf-8',
+            },
+          });
+        },
+      },
 
       // ======================================================================
       // FINANCIAL MODELING MINI APP API
