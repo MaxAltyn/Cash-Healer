@@ -116,7 +116,7 @@ const routeAction = createStep({
     caption: z.string().optional(),
   }),
   outputSchema: z.object({
-    action: z.enum(["create_order_detox", "create_order_modeling", "confirm_payment", "show_admin_panel", "send_report", "process_admin_document", "reject_non_admin_document", "use_agent"]),
+    action: z.enum(["create_order_detox", "create_order_modeling", "confirm_payment", "show_admin_panel", "process_admin_document", "reject_non_admin_document", "use_agent"]),
     orderId: z.number().optional(),
     paymentId: z.string().optional(),
     dbUserId: z.number(),
@@ -177,19 +177,6 @@ const routeAction = createStep({
     if (isAdmin) {
       if (inputData.messageType === "message" && inputData.message === "/admin") {
         action = "show_admin_panel";
-      } else if (inputData.messageType === "callback_query" && inputData.callbackData) {
-        const data = inputData.callbackData;
-        if (data.startsWith("send_report_")) {
-          // Формат: send_report_<orderId>
-          const match = data.match(/^send_report_(\d+)$/);
-          if (match && match[1]) {
-            const parsedOrderId = parseInt(match[1]);
-            if (!isNaN(parsedOrderId)) {
-              action = "send_report";
-              orderId = parsedOrderId;
-            }
-          }
-        }
       }
     }
 
@@ -755,64 +742,10 @@ const showAdminPanel = createStep({
       return `#${order.orderId} • ${service} • ${order.price}₽\n👤 @${userName}\n📅 ${new Date(order.createdAt).toLocaleString("ru-RU")}`;
     }).join("\n\n");
 
-    // Формируем кнопки для отправки отчетов
-    const buttons = ordersResult.orders.map(order => [{
-      text: `📤 Отправить отчет #${order.orderId}`,
-      callback_data: `send_report_${order.orderId}`,
-    }]);
-
     await sendTelegramMessage.execute({
       context: {
         chatId: inputData.chatId,
-        text: `👨‍💼 *АДМИН-ПАНЕЛЬ*\n\nЗаявки на обработку (${ordersResult.orders.length}):\n\n${ordersList}`,
-        inlineKeyboard: buttons,
-        parseMode: "Markdown",
-      },
-      runtimeContext,
-    });
-
-    return { success: true };
-  },
-});
-
-/**
- * Шаг 7: Отправка отчета пользователю
- */
-const sendReport = createStep({
-  id: "send-report",
-  inputSchema: z.object({
-    orderId: z.number(),
-    chatId: z.number(),
-  }).passthrough(),
-  outputSchema: z.object({ success: z.boolean() }),
-  execute: async ({ inputData, runtimeContext, mastra }) => {
-    const logger = mastra?.getLogger();
-    logger?.info("📤 [sendReport] Sending report", { orderId: inputData.orderId });
-
-    // Получаем информацию о заказе
-    const orderResult = await getOrderByIdTool.execute({
-      context: { orderId: inputData.orderId },
-      runtimeContext,
-    });
-
-    if (!orderResult.order) {
-      logger?.error("❌ Order not found", { orderId: inputData.orderId });
-      await sendTelegramMessage.execute({
-        context: {
-          chatId: inputData.chatId,
-          text: "❌ Заказ не найден.",
-          inlineKeyboard: undefined,
-          parseMode: "Markdown",
-        },
-        runtimeContext,
-      });
-      return { success: false };
-    }
-
-    await sendTelegramMessage.execute({
-      context: {
-        chatId: inputData.chatId,
-        text: `📤 Для отправки отчета пользователю:\n\n1. Загрузите PDF и/или Excel файлы отчета\n2. В подписи к файлу укажите: \`/send ${inputData.orderId}\`\n\nЗаказ #${inputData.orderId}\nТип: ${orderResult.order.serviceType}\n\n_Отправьте файлы с подписью в этот чат_`,
+        text: `👨‍💼 *АДМИН-ПАНЕЛЬ*\n\nЗаявки на обработку (${ordersResult.orders.length}):\n\n${ordersList}\n\n━━━━━━━━━━━━━━━━━━\n📤 *Как отправить отчет:*\n1. Загрузите PDF/Excel файл\n2. В подписи укажите: \`/send {номер заказа}\`\n\nПример: \`/send 3\``,
         inlineKeyboard: undefined,
         parseMode: "Markdown",
       },
@@ -822,6 +755,7 @@ const sendReport = createStep({
     return { success: true };
   },
 });
+
 
 /**
  * Шаг 8: Обработка загруженных файлов от админа
@@ -1071,7 +1005,6 @@ export const telegramBotWorkflow = createWorkflow({
     [async ({ inputData }: any) => inputData.action === "create_order_modeling", createModelingOrder as any],
     [async ({ inputData }: any) => inputData.action === "confirm_payment", confirmPayment as any],
     [async ({ inputData }: any) => inputData.action === "show_admin_panel", showAdminPanel as any],
-    [async ({ inputData }: any) => inputData.action === "send_report", sendReport as any],
     [async ({ inputData }: any) => inputData.action === "process_admin_document", processAdminDocument as any],
     [async ({ inputData }: any) => inputData.action === "reject_non_admin_document", rejectNonAdminDocument as any],
     [async ({ inputData }: any) => inputData.action === "use_agent", useAgent as any],
