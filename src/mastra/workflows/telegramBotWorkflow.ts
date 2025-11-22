@@ -660,18 +660,30 @@ const confirmPayment = createStep({
       
       logger?.info("📱 [confirmPayment] Sending Mini App link", { miniAppUrl });
       
-      await sendTelegramMessage.execute({
-        context: {
-          chatId: inputData.chatId,
-          text: "✅ *Оплата получена!*\n\n💰 Финансовое моделирование доступно!\n\n📊 Введите ваши финансовые данные и получите персональный AI-анализ бюджета с рекомендациями.\n\nНажмите кнопку ниже, чтобы открыть калькулятор:",
-          inlineKeyboard: [[{
-            text: "🚀 Открыть калькулятор",
-            web_app: { url: miniAppUrl },
-          }]],
-          parseMode: "Markdown",
-        },
-        runtimeContext,
-      });
+      try {
+        const sendResult = await sendTelegramMessage.execute({
+          context: {
+            chatId: inputData.chatId,
+            text: "✅ *Оплата получена!*\n\n💰 Финансовое моделирование доступно!\n\n📊 Введите ваши финансовые данные и получите персональный AI-анализ бюджета с рекомендациями.\n\nНажмите кнопку ниже, чтобы открыть калькулятор:",
+            inlineKeyboard: [[{
+              text: "🚀 Открыть калькулятор",
+              web_app: { url: miniAppUrl },
+            }]],
+            parseMode: "Markdown",
+          },
+          runtimeContext,
+        });
+        
+        logger?.info("📤 [confirmPayment] Message send result", { 
+          success: sendResult.success,
+          error: sendResult.error,
+        });
+      } catch (error: any) {
+        logger?.error("❌ [confirmPayment] Failed to send Mini App message", { 
+          error: error.message,
+          stack: error.stack,
+        });
+      }
 
       // Обновляем статус на completed только после отправки ссылки
       const completedResult = await updateOrderStatusTool.execute({
