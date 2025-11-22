@@ -23,12 +23,16 @@ export const sendTelegramMessage = createTool({
         z.array(
           z.object({
             text: z.string().describe("Button text"),
-            callback_data: z.string().describe("Data to send when button is clicked"),
+            callback_data: z.string().optional().describe("Data to send when button is clicked (for callback buttons)"),
+            web_app: z.object({
+              url: z.string().describe("Web App URL to open"),
+            }).optional().describe("Web App configuration for Mini Apps (for web_app buttons)"),
+            url: z.string().optional().describe("HTTP or tg:// url to be opened (for URL buttons)"),
           })
         )
       )
       .optional()
-      .describe("Optional inline keyboard buttons (array of rows, each row is an array of buttons)"),
+      .describe("Optional inline keyboard buttons (array of rows, each row is an array of buttons). Each button must have text and exactly one of: callback_data, web_app, or url"),
     parseMode: z.enum(["Markdown", "HTML"]).optional().default("Markdown"),
   }),
 
@@ -51,9 +55,23 @@ export const sendTelegramMessage = createTool({
       };
 
       if (context.inlineKeyboard && context.inlineKeyboard.length > 0) {
+        // Normalize buttons: remove undefined fields to match Telegram API requirements
+        const normalizedKeyboard = context.inlineKeyboard.map(row =>
+          row.map(button => {
+            const normalized: any = { text: button.text };
+            if (button.callback_data) normalized.callback_data = button.callback_data;
+            if (button.web_app) normalized.web_app = button.web_app;
+            if (button.url) normalized.url = button.url;
+            return normalized;
+          })
+        );
+        
         options.reply_markup = {
-          inline_keyboard: context.inlineKeyboard,
+          inline_keyboard: normalizedKeyboard,
         };
+        logger?.debug("📱 [sendTelegramMessage] Sending inline keyboard", {
+          keyboard: JSON.stringify(normalizedKeyboard),
+        });
       }
 
       const result = await bot.sendMessage(context.chatId, context.text, options);

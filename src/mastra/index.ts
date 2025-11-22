@@ -295,7 +295,6 @@ export const mastra = new Mastra({
                 savingsGoal: body.goal,
                 notes: body.notes,
               },
-              runtimeContext: {},
               mastra,
             });
 

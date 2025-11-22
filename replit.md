@@ -6,6 +6,7 @@ This is a Telegram bot application built with Mastra framework for financial edu
 ✅ **All development complete** - System fully tested and validated
 ✅ **Ready for deployment** - All features working in development environment
 ✅ **Admin panel operational** - /admin command and report sending functionality working
+✅ **Mini App integrated** - Financial Modeling service with Telegram Web App interface and AI analysis
 
 # User Preferences
 
@@ -43,20 +44,29 @@ Preferred communication style: Simple, everyday language.
 - **Main Tables**:
   - `users`: Telegram user data (telegramId, username, firstName, lastName, isAdmin)
   - `orders`: Service orders with status tracking (created → payment_pending → payment_confirmed → form_sent → form_filled → processing → completed/cancelled)
+  - `financial_models`: Financial planning data (userId, currentBalance, monthlyIncome, monthlyExpenses, savingsGoal, notes)
   - Payment-related tables (referenced but not fully shown in schema)
 - **Admin Access**: First admin configured (telegram_id=1071532376, user_id=4)
 
 ## Service Types
 - **Financial Detox**: One-time service (400-500 RUB) with Yandex Forms integration
-- **Financial Modeling**: Subscription-like service (300-400 RUB) with automated algorithm access
+- **Financial Modeling**: Interactive service (300-400 RUB) with Telegram Mini App interface
+  - Web-based budget calculator with AI-powered analysis
+  - Stores financial models in database (balance, income, expenses, savings goals)
+  - Accessible via web_app button in Telegram after payment confirmation
 
 ## Telegram Integration
 - **Webhook-based**: Receives updates via `/webhooks/telegram/action` endpoint
 - **Message Types**: Handles both text messages and callback queries (button interactions)
-- **Response Patterns**: Text messages and inline keyboard buttons for service selection
+- **Response Patterns**: Text messages, inline keyboard buttons, and web_app buttons (Mini Apps)
+- **Mini App Integration**: Financial Modeling service uses Telegram Web App for interactive UI
+  - Static HTML hosted at `/financial-modeling.html`
+  - Sends data to `/api/financial-modeling/save` endpoint
+  - Receives AI-powered budget analysis via analyzeBudgetTool
 - **Admin Commands**:
   - `/admin` - Shows all pending orders (form_filled status) with send report buttons
   - Callback: `send_report_{orderId}` - Sends report to user and updates order status to completed
+  - Media group support for multiple file uploads (PDF + Excel)
 
 ## External Dependencies
 
