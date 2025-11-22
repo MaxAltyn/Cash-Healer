@@ -846,8 +846,8 @@ export const financialModelingHtml = `<!DOCTYPE html>
             }
         }, 2000);
         
-        // Добавляем event listeners для существующих кнопок
-        document.addEventListener('DOMContentLoaded', function() {
+        // Инициализация event listeners (сразу, без DOMContentLoaded, т.к. скрипт в конце страницы)
+        (function initEventListeners() {
             // Кнопка "Добавить расход"
             document.getElementById('addExpenseBtn').addEventListener('click', addExpense);
             
@@ -873,7 +873,7 @@ export const financialModelingHtml = `<!DOCTYPE html>
                     removeWish(this);
                 });
             });
-        });
+        })();
     </script>
 </body>
 </html>`;
