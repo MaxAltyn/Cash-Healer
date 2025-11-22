@@ -616,6 +616,11 @@ const confirmPayment = createStep({
     }
 
     // Обрабатываем по типу услуги
+    logger?.info("🔍 [confirmPayment] Processing by service type", { 
+      serviceType: orderResult.order.serviceType,
+      orderId: inputData.orderId,
+    });
+    
     if (orderResult.order.serviceType === "financial_detox") {
       const formSentResult = await updateOrderStatusTool.execute({
         context: {
