@@ -285,8 +285,9 @@ export const financialModelingHtml = `<!DOCTYPE html>
         <div class="card">
             <h1>💰 Финансовое моделирование</h1>
             <p class="subtitle">Создайте интерактивную модель и экспериментируйте со сценариями</p>
-            <div id="debugStatus" style="background: #e3f2fd; padding: 8px; border-radius: 4px; font-size: 12px; margin-bottom: 16px; display: none;">
-                <strong>🔧 Статус:</strong> <span id="debugText">Загрузка...</span>
+            <div id="debugStatus" style="background: #ffe082; padding: 12px; border-radius: 8px; font-size: 14px; margin-bottom: 16px; border: 2px solid #ff9800;">
+                <strong>🔧 ТЕСТ:</strong> <span id="debugText">Если видите этот текст - HTML загрузился!</span>
+                <button onclick="alert('JavaScript работает!')" style="margin-left: 8px; padding: 4px 8px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">Тест JS</button>
             </div>
             
             <!-- Базовые данные -->

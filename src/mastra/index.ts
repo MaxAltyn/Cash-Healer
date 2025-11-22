@@ -233,6 +233,9 @@ export const mastra = new Mastra({
           return new Response(financialModelingHtml, {
             headers: {
               'Content-Type': 'text/html; charset=utf-8',
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache',
+              'Expires': '0',
             },
           });
         },
