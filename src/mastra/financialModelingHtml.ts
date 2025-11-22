@@ -84,12 +84,21 @@ export const financialModelingHtml = `<!DOCTYPE html>
             gap: 8px;
             align-items: flex-start;
         }
-        .expense-category input, .wish-item input {
+        .expense-category input, .wish-item input, .wish-item select {
             flex: 1;
             min-width: 0;
         }
         .expense-category input[type="number"], .wish-item input[type="number"] {
             flex: 0 0 120px;
+        }
+        .wish-item select {
+            flex: 0 0 140px;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            background: white;
+            cursor: pointer;
         }
         .btn-remove {
             background: #f44336;
@@ -297,6 +306,11 @@ export const financialModelingHtml = `<!DOCTYPE html>
                 <div class="wish-item">
                     <input type="text" placeholder="Что хотите купить" value="Новый телефон">
                     <input type="number" placeholder="Цена" value="40000">
+                    <select class="wish-priority">
+                        <option value="high">🔴 Высокий</option>
+                        <option value="medium" selected>🟡 Средний</option>
+                        <option value="low">🟢 Низкий</option>
+                    </select>
                     <button class="btn-remove" onclick="removeWish(this)">✕</button>
                 </div>
             </div>
@@ -389,6 +403,11 @@ export const financialModelingHtml = `<!DOCTYPE html>
             div.innerHTML = \`
                 <input type="text" placeholder="Что хотите купить">
                 <input type="number" placeholder="Цена">
+                <select class="wish-priority">
+                    <option value="high">🔴 Высокий</option>
+                    <option value="medium" selected>🟡 Средний</option>
+                    <option value="low">🟢 Низкий</option>
+                </select>
                 <button class="btn-remove" onclick="removeWish(this)">✕</button>
             \`;
             container.appendChild(div);
@@ -415,8 +434,9 @@ export const financialModelingHtml = `<!DOCTYPE html>
             document.querySelectorAll('#wishesContainer .wish-item').forEach(el => {
                 const name = el.children[0].value;
                 const price = parseFloat(el.children[1].value) || 0;
+                const priority = el.children[2].value;
                 if (name && price > 0) {
-                    wishes.push({ name, price });
+                    wishes.push({ name, price, priority });
                 }
             });
             return wishes;

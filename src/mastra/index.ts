@@ -262,18 +262,39 @@ export const mastra = new Mastra({
               return c.json({ success: false, error: "Missing userId" }, 400);
             }
 
-            const userId = parseInt(body.userId);
+            const telegramId = body.userId; // Keep as string
             const orderId = body.orderId ? parseInt(body.orderId) : null;
 
+            logger?.info("👤 [Financial Modeling] Processing for telegram user", {
+              telegramId,
+              orderId,
+            });
+
+            // Get or create user in database
+            const { getUserByTelegramId, createOrUpdateUser } = await import("../../server/storage");
+            let user = await getUserByTelegramId(telegramId);
+            
+            if (!user) {
+              // Create user if doesn't exist
+              user = await createOrUpdateUser({
+                telegramId,
+                username: `user${telegramId}`,
+                firstName: "User",
+                lastName: "",
+              });
+              logger?.info("✨ [Financial Modeling] Created new user", { userId: user.id });
+            }
+
             logger?.info("👤 [Financial Modeling] Processing for user", {
-              userId,
+              userId: user.id,
+              telegramId,
               orderId,
             });
 
             // Save financial model
             const { createOrUpdateFinancialModel } = await import("../../server/storage");
             const model = await createOrUpdateFinancialModel({
-              userId,
+              userId: user.id,
               orderId,
               currentBalance: Math.round(body.currentBalance || 0),
               nextIncome: Math.round(body.nextIncome || 0),
@@ -292,16 +313,17 @@ export const mastra = new Mastra({
               `${e.name}: ${e.amount}₽`
             ).join(', ');
             
-            const wishesList = (body.wishes || []).map((w: any) => 
-              `${w.name} (${w.price}₽)`
-            ).join(', ');
+            const wishesList = (body.wishes || []).map((w: any) => {
+              const priorityEmoji = w.priority === 'high' ? '🔴' : w.priority === 'low' ? '🟢' : '🟡';
+              return `${w.name} (${w.price}₽, приоритет: ${priorityEmoji})`;
+            }).join(', ');
 
             const today = new Date();
             const incomeDate = body.nextIncomeDate ? new Date(body.nextIncomeDate) : new Date();
             const daysUntilIncome = Math.max(1, Math.ceil((incomeDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
             
             const afterExpenses = body.currentBalance - body.totalExpenses;
-            const dailyBudget = body.currentBalance / daysUntilIncome;
+            const dailyBudget = Math.max(0, afterExpenses) / daysUntilIncome;
 
             const analysisResult = await analyzeBudgetTool.execute({
               context: {
