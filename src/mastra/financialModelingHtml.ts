@@ -313,15 +313,15 @@ export const financialModelingHtml = `<!DOCTYPE html>
                 <div class="expense-category">
                     <input type="text" placeholder="Категория (например, Еда)" value="Еда">
                     <input type="number" placeholder="Сумма" value="15000">
-                    <button class="btn-remove" onclick="removeExpense(this)">✕</button>
+                    <button class="btn-remove">✕</button>
                 </div>
                 <div class="expense-category">
                     <input type="text" placeholder="Категория (например, Транспорт)" value="Транспорт">
                     <input type="number" placeholder="Сумма" value="5000">
-                    <button class="btn-remove" onclick="removeExpense(this)">✕</button>
+                    <button class="btn-remove">✕</button>
                 </div>
             </div>
-            <button class="btn-add" onclick="addExpense()">+ Добавить расход</button>
+            <button class="btn-add" id="addExpenseBtn">+ Добавить расход</button>
             
             <!-- Хотелки -->
             <div class="section-title" style="margin-top: 24px;">✨ Желаемые покупки</div>
@@ -334,12 +334,12 @@ export const financialModelingHtml = `<!DOCTYPE html>
                         <option value="medium" selected>🟡 Средний</option>
                         <option value="low">🟢 Низкий</option>
                     </select>
-                    <button class="btn-remove" onclick="removeWish(this)">✕</button>
+                    <button class="btn-remove">✕</button>
                 </div>
             </div>
-            <button class="btn-add" onclick="addWish()">+ Добавить желание</button>
+            <button class="btn-add" id="addWishBtn">+ Добавить желание</button>
             
-            <button class="btn-primary" onclick="calculate()">🔮 Рассчитать модель</button>
+            <button class="btn-primary" id="calculateBtn">🔮 Рассчитать модель</button>
         </div>
         
         <!-- Результаты -->
@@ -378,7 +378,7 @@ export const financialModelingHtml = `<!DOCTYPE html>
             
             <div id="wishCombinations"></div>
             
-            <button class="btn-primary" onclick="saveAndAnalyze()" id="saveBtn">
+            <button class="btn-primary" id="saveBtn">
                 💾 Сохранить и получить AI рекомендации
             </button>
         </div>
@@ -409,8 +409,12 @@ export const financialModelingHtml = `<!DOCTYPE html>
             div.innerHTML = \`
                 <input type="text" placeholder="Категория">
                 <input type="number" placeholder="Сумма">
-                <button class="btn-remove" onclick="removeExpense(this)">✕</button>
+                <button class="btn-remove">✕</button>
             \`;
+            const removeBtn = div.querySelector('.btn-remove');
+            removeBtn.addEventListener('click', function() {
+                removeExpense(this);
+            });
             container.appendChild(div);
         }
         
@@ -433,8 +437,12 @@ export const financialModelingHtml = `<!DOCTYPE html>
                     <option value="medium" selected>🟡 Средний</option>
                     <option value="low">🟢 Низкий</option>
                 </select>
-                <button class="btn-remove" onclick="removeWish(this)">✕</button>
+                <button class="btn-remove">✕</button>
             \`;
+            const removeBtn = div.querySelector('.btn-remove');
+            removeBtn.addEventListener('click', function() {
+                removeWish(this);
+            });
             container.appendChild(div);
         }
         
@@ -837,6 +845,35 @@ export const financialModelingHtml = `<!DOCTYPE html>
                 calculate();
             }
         }, 2000);
+        
+        // Добавляем event listeners для существующих кнопок
+        document.addEventListener('DOMContentLoaded', function() {
+            // Кнопка "Добавить расход"
+            document.getElementById('addExpenseBtn').addEventListener('click', addExpense);
+            
+            // Кнопка "Добавить желание"
+            document.getElementById('addWishBtn').addEventListener('click', addWish);
+            
+            // Кнопка "Рассчитать модель"
+            document.getElementById('calculateBtn').addEventListener('click', calculate);
+            
+            // Кнопка "Сохранить и получить AI рекомендации"
+            document.getElementById('saveBtn').addEventListener('click', saveAndAnalyze);
+            
+            // Event listeners для существующих кнопок удаления расходов
+            document.querySelectorAll('#expensesContainer .btn-remove').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    removeExpense(this);
+                });
+            });
+            
+            // Event listeners для существующих кнопок удаления желаний
+            document.querySelectorAll('#wishesContainer .btn-remove').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    removeWish(this);
+                });
+            });
+        });
     </script>
 </body>
 </html>`;
