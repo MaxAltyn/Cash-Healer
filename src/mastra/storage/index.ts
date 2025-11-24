@@ -14,6 +14,20 @@ const getDatabaseUrl = () => {
   return dbUrl;
 };
 
-export const sharedPostgresStorage = new PostgresStore({
-  connectionString: getDatabaseUrl(),
-});
+// Try to create PostgreSQL storage, but allow graceful fallback if connection fails
+let sharedPostgresStorage: PostgresStore | undefined;
+
+try {
+  if (process.env.DATABASE_URL) {
+    sharedPostgresStorage = new PostgresStore({
+      connectionString: getDatabaseUrl(),
+    });
+  } else {
+    console.warn("[Storage] DATABASE_URL not found - storage disabled (workflows won't persist)");
+  }
+} catch (error) {
+  console.error("[Storage] Failed to initialize PostgreSQL storage:", error);
+  console.warn("[Storage] Continuing without storage (workflows won't persist across restarts)");
+}
+
+export { sharedPostgresStorage };

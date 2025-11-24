@@ -1,6 +1,4 @@
 import { Agent } from "@mastra/core/agent";
-import { Memory } from "@mastra/memory";
-import { sharedPostgresStorage } from "../storage";
 import { createOpenAI } from "@ai-sdk/openai";
 
 // Import all tools
@@ -163,15 +161,6 @@ my_orders → Список заказов пользователя
     getPendingOrdersTool,
   },
 
-  memory: new Memory({
-    options: {
-      threads: {
-        generateTitle: false, // Отключаем для скорости
-      },
-      lastMessages: 5, // Минимальный контекст для скорости
-      semanticRecall: false, // Отключаем векторный поиск
-      workingMemory: { enabled: false }, // Отключаем working memory
-    },
-    storage: sharedPostgresStorage,
-  }),
+  // Memory отключена для production (не требует PostgreSQL)
+  // Все данные хранятся через databaseTools в основной БД
 });

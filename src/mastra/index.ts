@@ -7,7 +7,8 @@ import { MCPServer } from "@mastra/mcp";
 import { NonRetriableError } from "inngest";
 import { z } from "zod";
 
-import { sharedPostgresStorage } from "./storage";
+// Storage removed - not needed for basic bot functionality
+// import { sharedPostgresStorage } from "./storage";
 import { inngest, inngestServe } from "./inngest";
 import { telegramBotWorkflow } from "./workflows/telegramBotWorkflow";
 import { financialBotAgent } from "./agents/financialBotAgent";
@@ -72,7 +73,8 @@ class ProductionPinoLogger extends MastraLogger {
 }
 
 export const mastra = new Mastra({
-  storage: sharedPostgresStorage,
+  // Storage disabled to avoid PostgreSQL dependency in production
+  // Workflows will not persist across restarts, but basic functionality works
   // Register your workflows here
   workflows: {
     telegramBotWorkflow,
