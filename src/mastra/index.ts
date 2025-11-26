@@ -229,6 +229,60 @@ export const mastra = new Mastra({
       // ======================================================================
 
       // ======================================================================
+      // TELEGRAM WEBHOOK SETUP ENDPOINT
+      // ======================================================================
+      {
+        path: "/api/telegram/setup-webhook",
+        method: "GET",
+        createHandler: async ({ mastra }) => async (c) => {
+          const logger = mastra.getLogger();
+          const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+          
+          if (!BOT_TOKEN) {
+            return c.json({ ok: false, error: "TELEGRAM_BOT_TOKEN not set" }, 500);
+          }
+          
+          try {
+            // Get bot info to verify token
+            const botInfoRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getMe`);
+            const botInfo = await botInfoRes.json();
+            
+            if (!botInfo.ok) {
+              return c.json({ ok: false, error: "Invalid bot token", details: botInfo }, 401);
+            }
+            
+            // Get current webhook info
+            const webhookInfoRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getWebhookInfo`);
+            const webhookInfo = await webhookInfoRes.json();
+            
+            // Set webhook to our endpoint
+            const domain = process.env.REPLIT_DOMAINS || process.env.REPLIT_DEV_DOMAIN;
+            const webhookUrl = `https://${domain}/api/webhooks/telegram/action`;
+            
+            const setWebhookRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/setWebhook`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ url: webhookUrl }),
+            });
+            const setWebhookResult = await setWebhookRes.json();
+            
+            logger?.info("📡 [Telegram] Webhook setup", { botInfo, webhookUrl, setWebhookResult });
+            
+            return c.json({
+              ok: true,
+              bot: botInfo.result,
+              webhook_url: webhookUrl,
+              set_webhook_result: setWebhookResult,
+              current_webhook: webhookInfo.result,
+            });
+          } catch (error: any) {
+            logger?.error("❌ [Telegram] Webhook setup failed", { error: error.message });
+            return c.json({ ok: false, error: error.message }, 500);
+          }
+        },
+      },
+
+      // ======================================================================
       // FINANCIAL MODELING MINI APP STATIC FILES
       // ======================================================================
       {
