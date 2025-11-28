@@ -72,6 +72,59 @@ class ProductionPinoLogger extends MastraLogger {
   }
 }
 
+// ======================================================================
+// AUTOMATIC TELEGRAM WEBHOOK SETUP ON SERVER START
+// ======================================================================
+async function setupTelegramWebhookOnStart() {
+  const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+  if (!BOT_TOKEN) {
+    console.warn("⚠️ [Telegram] TELEGRAM_BOT_TOKEN not set, skipping webhook setup");
+    return;
+  }
+
+  // Wait a bit for server to be ready
+  await new Promise(resolve => setTimeout(resolve, 2000));
+
+  try {
+    const domain = process.env.REPLIT_DOMAINS || process.env.REPLIT_DEV_DOMAIN;
+    if (!domain) {
+      console.warn("⚠️ [Telegram] No domain found (REPLIT_DOMAINS or REPLIT_DEV_DOMAIN), skipping webhook setup");
+      return;
+    }
+
+    const webhookUrl = `https://${domain}/api/webhooks/telegram/action`;
+    
+    // Get current webhook info first
+    const webhookInfoRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getWebhookInfo`);
+    const webhookInfo = await webhookInfoRes.json();
+    
+    // Only update if webhook URL is different
+    if (webhookInfo.ok && webhookInfo.result?.url !== webhookUrl) {
+      console.log(`🔄 [Telegram] Updating webhook from ${webhookInfo.result?.url || 'none'} to ${webhookUrl}`);
+      
+      const setWebhookRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/setWebhook`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: webhookUrl }),
+      });
+      const setWebhookResult = await setWebhookRes.json();
+      
+      if (setWebhookResult.ok) {
+        console.log(`✅ [Telegram] Webhook successfully set to: ${webhookUrl}`);
+      } else {
+        console.error(`❌ [Telegram] Failed to set webhook:`, setWebhookResult);
+      }
+    } else {
+      console.log(`✅ [Telegram] Webhook already configured: ${webhookUrl}`);
+    }
+  } catch (error: any) {
+    console.error(`❌ [Telegram] Webhook setup error:`, error.message);
+  }
+}
+
+// Call webhook setup on module load
+setupTelegramWebhookOnStart();
+
 export const mastra = new Mastra({
   // Storage disabled to avoid PostgreSQL dependency in production
   // Workflows will not persist across restarts, but basic functionality works
