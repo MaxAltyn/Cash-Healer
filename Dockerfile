@@ -14,7 +14,6 @@ RUN npm run build
 
 FROM base AS runner
 ENV NODE_ENV=production
-ENV PORT=5000
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=builder /app/.mastra ./.mastra
@@ -25,6 +24,5 @@ COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
 COPY --from=builder /app/start.js ./start.js
 
-EXPOSE 5000
-
-CMD ["node", "start.js"]
+# Shell form CMD allows PORT variable expansion at runtime
+CMD node start.js

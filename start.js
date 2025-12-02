@@ -6,13 +6,21 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+const PORT = process.env.PORT || '5000';
+
+// Derive HOST_URL from RAILWAY_PUBLIC_DOMAIN if not set
+if (!process.env.HOST_URL && process.env.RAILWAY_PUBLIC_DOMAIN) {
+  process.env.HOST_URL = `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+}
+
 console.log('🚀 Starting Mastra server in production mode...');
 console.log(`📁 Working directory: ${process.cwd()}`);
 console.log(`🌍 NODE_ENV: ${process.env.NODE_ENV}`);
-console.log(`🔗 HOST_URL: ${process.env.HOST_URL || 'not set'}`);
+console.log(`🔌 PORT: ${PORT}`);
+console.log(`🔗 HOST_URL: ${process.env.HOST_URL || 'not set - add HOST_URL or enable Public Networking in Railway'}`);
 console.log(`🤖 TELEGRAM_BOT_TOKEN: ${process.env.TELEGRAM_BOT_TOKEN ? '✅ configured' : '❌ NOT SET - add in Railway Variables'}`);
 console.log(`🗄️  DATABASE_URL: ${process.env.DATABASE_URL ? '✅ configured' : '⚠️ not set'}`);
-console.log(`🚂 RAILWAY_PUBLIC_DOMAIN: ${process.env.RAILWAY_PUBLIC_DOMAIN || 'not set'}`);
+console.log(`🚂 RAILWAY_PUBLIC_DOMAIN: ${process.env.RAILWAY_PUBLIC_DOMAIN || 'not set - enable Public Networking in Railway'}`);
 
 const mastraPath = path.join(__dirname, '.mastra', 'output', 'index.mjs');
 
