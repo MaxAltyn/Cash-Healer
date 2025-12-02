@@ -106,6 +106,22 @@ export function registerCronWorkflow(cronExpression: string, workflow: any) {
   inngestFunctions.push(f);
 }
 
+function getServeHost(): string | undefined {
+  if (process.env.NODE_ENV === "production") {
+    if (process.env.HOST_URL) {
+      return process.env.HOST_URL.replace(/\/$/, '');
+    }
+    if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+      return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+    }
+    if (process.env.REPLIT_DOMAINS) {
+      return `https://${process.env.REPLIT_DOMAINS.split(",")[0]}`;
+    }
+    return undefined;
+  }
+  return "http://localhost:5000";
+}
+
 export function inngestServe({
   mastra,
   inngest,
@@ -113,14 +129,7 @@ export function inngestServe({
   mastra: Mastra;
   inngest: Inngest;
 }): ReturnType<typeof originalInngestServe> {
-  let serveHost: string | undefined = undefined;
-  if (process.env.NODE_ENV === "production") {
-    if (process.env.REPLIT_DOMAINS) {
-      serveHost = `https://${process.env.REPLIT_DOMAINS.split(",")[0]}`;
-    }
-  } else {
-    serveHost = "http://localhost:5000";
-  }
+  const serveHost = getServeHost();
   return originalInngestServe({
     mastra,
     inngest,

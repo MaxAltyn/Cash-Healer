@@ -75,6 +75,22 @@ class ProductionPinoLogger extends MastraLogger {
 // ======================================================================
 // AUTOMATIC TELEGRAM WEBHOOK SETUP ON SERVER START
 // ======================================================================
+function getHostUrl(): string | null {
+  if (process.env.HOST_URL) {
+    return process.env.HOST_URL.replace(/\/$/, '');
+  }
+  if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+    return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+  }
+  if (process.env.REPLIT_DOMAINS) {
+    return `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`;
+  }
+  if (process.env.REPLIT_DEV_DOMAIN) {
+    return `https://${process.env.REPLIT_DEV_DOMAIN}`;
+  }
+  return null;
+}
+
 async function setupTelegramWebhookOnStart() {
   const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
   if (!BOT_TOKEN) {
@@ -82,23 +98,20 @@ async function setupTelegramWebhookOnStart() {
     return;
   }
 
-  // Wait a bit for server to be ready
-  await new Promise(resolve => setTimeout(resolve, 2000));
+  await new Promise(resolve => setTimeout(resolve, 3000));
 
   try {
-    const domain = process.env.REPLIT_DOMAINS || process.env.REPLIT_DEV_DOMAIN;
-    if (!domain) {
-      console.warn("⚠️ [Telegram] No domain found (REPLIT_DOMAINS or REPLIT_DEV_DOMAIN), skipping webhook setup");
+    const hostUrl = getHostUrl();
+    if (!hostUrl) {
+      console.warn("⚠️ [Telegram] No host URL found (HOST_URL, RAILWAY_PUBLIC_DOMAIN, REPLIT_DOMAINS), skipping webhook setup");
       return;
     }
 
-    const webhookUrl = `https://${domain}/api/webhooks/telegram/action`;
+    const webhookUrl = `${hostUrl}/api/webhooks/telegram/action`;
     
-    // Get current webhook info first
     const webhookInfoRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getWebhookInfo`);
     const webhookInfo = await webhookInfoRes.json();
     
-    // Only update if webhook URL is different
     if (webhookInfo.ok && webhookInfo.result?.url !== webhookUrl) {
       console.log(`🔄 [Telegram] Updating webhook from ${webhookInfo.result?.url || 'none'} to ${webhookUrl}`);
       
@@ -296,7 +309,6 @@ export const mastra = new Mastra({
           }
           
           try {
-            // Get bot info to verify token
             const botInfoRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getMe`);
             const botInfo = await botInfoRes.json();
             
@@ -304,13 +316,14 @@ export const mastra = new Mastra({
               return c.json({ ok: false, error: "Invalid bot token", details: botInfo }, 401);
             }
             
-            // Get current webhook info
             const webhookInfoRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getWebhookInfo`);
             const webhookInfo = await webhookInfoRes.json();
             
-            // Set webhook to our endpoint
-            const domain = process.env.REPLIT_DOMAINS || process.env.REPLIT_DEV_DOMAIN;
-            const webhookUrl = `https://${domain}/api/webhooks/telegram/action`;
+            const hostUrl = getHostUrl();
+            if (!hostUrl) {
+              return c.json({ ok: false, error: "No HOST_URL or RAILWAY_PUBLIC_DOMAIN configured" }, 500);
+            }
+            const webhookUrl = `${hostUrl}/api/webhooks/telegram/action`;
             
             const setWebhookRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/setWebhook`, {
               method: "POST",
