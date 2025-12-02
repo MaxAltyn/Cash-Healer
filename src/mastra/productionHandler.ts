@@ -510,7 +510,8 @@ async function handleUseAgent(
     : `Пользователь написал: "${data.message}"\n\nKONTEXT: chatId=${data.chatId}, userId=${data.userId}, userName=${data.userName}, firstName=${data.firstName}, lastName=${data.lastName}`;
 
   try {
-    const response = await agent.generate(prompt, {
+    // Use generateLegacy for AI SDK v4 compatibility
+    const response = await agent.generateLegacy(prompt, {
       threadId: data.threadId,
       resourceId: `telegram-${data.userId}`,
     });
