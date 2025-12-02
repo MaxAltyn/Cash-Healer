@@ -14,6 +14,7 @@ import { telegramBotWorkflow } from "./workflows/telegramBotWorkflow";
 import { financialBotAgent } from "./agents/financialBotAgent";
 import { registerTelegramTrigger } from "../triggers/telegramTriggers";
 import { financialModelingHtml } from "./financialModelingHtml";
+import { handleTelegramMessageDirect } from "./productionHandler";
 import * as fs from "fs";
 import * as path from "path";
 import * as url from "url";
@@ -548,6 +549,7 @@ export const mastra = new Mastra({
             chatId: triggerInfo.params.chatId,
             userId: triggerInfo.params.userId,
             type: triggerInfo.type,
+            isProduction: process.env.NODE_ENV === "production",
           });
 
           // Create unique thread ID for each user
@@ -561,39 +563,65 @@ export const mastra = new Mastra({
             messageType = "document";
           }
 
-          // Start the workflow
-          try {
-            const run = await telegramBotWorkflow.createRunAsync();
-            const result = await run.start({
-              inputData: {
-                threadId,
-                chatId: triggerInfo.params.chatId,
-                userId: triggerInfo.params.userId,
-                userName: triggerInfo.params.userName,
-                firstName: triggerInfo.params.firstName,
-                lastName: triggerInfo.params.lastName,
-                message: triggerInfo.params.message,
-                messageId: triggerInfo.params.messageId,
-                callbackQueryId: triggerInfo.params.callbackQueryId,
-                callbackData: triggerInfo.params.callbackData,
-                messageType,
-                fileId: triggerInfo.params.fileId,
-                fileName: triggerInfo.params.fileName,
-                fileSize: triggerInfo.params.fileSize,
-                caption: triggerInfo.params.caption,
-              },
-            });
+          // In production, use direct handler (no Inngest)
+          // In development, use Inngest workflow
+          const isProduction = process.env.NODE_ENV === "production";
+          
+          if (isProduction) {
+            logger?.info("🚀 [Telegram Trigger] Using production direct handler");
+            await handleTelegramMessageDirect(mastra, {
+              threadId,
+              chatId: triggerInfo.params.chatId,
+              userId: triggerInfo.params.userId,
+              userName: triggerInfo.params.userName,
+              firstName: triggerInfo.params.firstName,
+              lastName: triggerInfo.params.lastName,
+              message: triggerInfo.params.message,
+              messageId: triggerInfo.params.messageId,
+              callbackQueryId: triggerInfo.params.callbackQueryId,
+              callbackData: triggerInfo.params.callbackData,
+              messageType,
+              fileId: triggerInfo.params.fileId,
+              fileName: triggerInfo.params.fileName,
+              fileSize: triggerInfo.params.fileSize,
+              caption: triggerInfo.params.caption,
+            }, {});
+            logger?.info("✅ [Telegram Trigger] Production handler completed");
+          } else {
+            // Development mode - use Inngest workflow
+            try {
+              const run = await telegramBotWorkflow.createRunAsync();
+              const result = await run.start({
+                inputData: {
+                  threadId,
+                  chatId: triggerInfo.params.chatId,
+                  userId: triggerInfo.params.userId,
+                  userName: triggerInfo.params.userName,
+                  firstName: triggerInfo.params.firstName,
+                  lastName: triggerInfo.params.lastName,
+                  message: triggerInfo.params.message,
+                  messageId: triggerInfo.params.messageId,
+                  callbackQueryId: triggerInfo.params.callbackQueryId,
+                  callbackData: triggerInfo.params.callbackData,
+                  messageType,
+                  fileId: triggerInfo.params.fileId,
+                  fileName: triggerInfo.params.fileName,
+                  fileSize: triggerInfo.params.fileSize,
+                  caption: triggerInfo.params.caption,
+                },
+              });
 
-            logger?.info("✅ [Telegram Trigger] Workflow completed", {
-              status: result.status,
-              chatId: triggerInfo.params.chatId,
-            });
-          } catch (error: any) {
-            logger?.error("❌ [Telegram Trigger] Workflow failed", {
-              error: error.message,
-              stack: error.stack,
-              chatId: triggerInfo.params.chatId,
-            });
+              logger?.info("✅ [Telegram Trigger] Workflow completed", {
+                status: result.status,
+                chatId: triggerInfo.params.chatId,
+              });
+            } catch (error: any) {
+              logger?.error("❌ [Telegram Trigger] Workflow failed", {
+                error: error.message,
+                stack: error.stack,
+                chatId: triggerInfo.params.chatId,
+              });
+            }
           }
         },
       }),
