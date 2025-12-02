@@ -47,30 +47,44 @@ export async function handleTelegramMessageDirect(
       messageType: data.messageType,
     });
 
-    // Step 1: Ensure user exists
-    const createResult = await createOrUpdateUserTool.execute({
-      context: {
-        telegramId: String(data.userId),
-        username: data.userName,
-        firstName: data.firstName,
-        lastName: data.lastName,
-      },
-      runtimeContext,
-    });
+    // Check if database is available
+    const hasDatabaseUrl = !!process.env.DATABASE_URL;
+    let dbUserId: number | undefined;
+    let isAdmin = false;
 
-    if (!createResult.success || !createResult.userId) {
-      logger?.error("❌ [ProductionHandler] Failed to create/update user");
-      return;
+    if (hasDatabaseUrl) {
+      // Step 1: Ensure user exists (only if database is available)
+      try {
+        const createResult = await createOrUpdateUserTool.execute({
+          context: {
+            telegramId: String(data.userId),
+            username: data.userName,
+            firstName: data.firstName,
+            lastName: data.lastName,
+          },
+          runtimeContext,
+        });
+
+        if (createResult.success && createResult.userId) {
+          dbUserId = createResult.userId;
+        }
+
+        // Get admin status
+        const userResult = await getUserByTelegramIdTool.execute({
+          context: { telegramId: String(data.userId) },
+          runtimeContext,
+        });
+        isAdmin = userResult.isAdmin === true;
+      } catch (dbError: any) {
+        logger?.warn("⚠️ [ProductionHandler] Database operation failed, continuing without DB", {
+          error: dbError.message,
+        });
+      }
+    } else {
+      logger?.info("ℹ️ [ProductionHandler] No DATABASE_URL, running without database features");
+      // Check admin by telegram ID directly (hardcoded fallback)
+      isAdmin = data.userId === 1071532376;
     }
-
-    const dbUserId = createResult.userId;
-
-    // Get admin status
-    const userResult = await getUserByTelegramIdTool.execute({
-      context: { telegramId: String(data.userId) },
-      runtimeContext,
-    });
-    const isAdmin = userResult.isAdmin === true;
 
     logger?.info("👤 [ProductionHandler] User info", { dbUserId, isAdmin });
 
@@ -108,16 +122,33 @@ export async function handleTelegramMessageDirect(
       }
     }
 
-    logger?.info("🔀 [ProductionHandler] Action determined", { action, orderId, paymentId });
+    logger?.info("🔀 [ProductionHandler] Action determined", { action, orderId, paymentId, hasDatabaseUrl });
 
     // Step 3: Execute action
+    // Actions that require database: create_order_*, confirm_payment, show_admin_panel, send_report
+    const dbRequiredActions = ["create_order_detox", "create_order_modeling", "confirm_payment", "show_admin_panel", "send_report"];
+    
+    if (dbRequiredActions.includes(action) && (!hasDatabaseUrl || !dbUserId)) {
+      logger?.warn("⚠️ [ProductionHandler] Database required but not available for action", { action });
+      await sendTelegramMessage.execute({
+        context: {
+          chatId: data.chatId,
+          text: "⚠️ Эта функция временно недоступна. Пожалуйста, обратитесь в поддержку.",
+          inlineKeyboard: undefined,
+          parseMode: "Markdown",
+        },
+        runtimeContext,
+      });
+      return;
+    }
+
     switch (action) {
       case "create_order_detox":
-        await handleCreateDetoxOrder(data, dbUserId, runtimeContext, logger);
+        await handleCreateDetoxOrder(data, dbUserId!, runtimeContext, logger);
         break;
 
       case "create_order_modeling":
-        await handleCreateModelingOrder(data, dbUserId, runtimeContext, logger);
+        await handleCreateModelingOrder(data, dbUserId!, runtimeContext, logger);
         break;
 
       case "confirm_payment":
