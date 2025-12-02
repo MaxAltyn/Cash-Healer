@@ -22,11 +22,43 @@ import {
   getPendingOrdersTool,
 } from "../tools/databaseTools";
 
-// Configure OpenAI using Replit AI Integrations
-const openai = createOpenAI({
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-});
+// Конфигурация AI с поддержкой нескольких провайдеров
+let aiProvider;
+
+// 1. Попробуем DeepSeek (российский сервис)
+if (process.env.DEEPSEEK_API_KEY) {
+  aiProvider = createOpenAI({
+    baseURL: "https://api.deepseek.com",
+    apiKey: process.env.DEEPSEEK_API_KEY,
+  });
+  console.log("🤖 Используется DeepSeek AI");
+}
+// 2. Запасной вариант: Replit AI (для совместимости)
+else if (process.env.AI_INTEGRATIONS_OPENAI_API_KEY && process.env.AI_INTEGRATIONS_OPENAI_BASE_URL) {
+  aiProvider = createOpenAI({
+    baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+    apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+  });
+  console.log("🤖 Используется Replit AI");
+}
+// 3. Фолбэк: локальная заглушка
+else {
+  console.warn("⚠️ AI провайдер не настроен, используется заглушка");
+  aiProvider = {
+    (modelName: string) => ({
+      async doGenerate() {
+        return {
+          text: `🤖 Финансовый помощник Cash Healer\n\nЯ готов помочь вам с финансовым планированием! В настоящее время AI сервис временно недоступен.\n\nЧто я могу:\n• Помочь создать бюджет\n• Проанализировать расходы\n• Дать советы по накоплениям\n• Ответить на финансовые вопросы\n\nИспользуйте команды:\n/start - главное меню\n/modeling - финансовый планировщик\n/help - помощь`,
+          usage: { totalTokens: 0 },
+          finishReason: 'stop',
+        };
+      }
+    })
+  };
+}
+
+// Используем модель DeepSeek Chat (аналог GPT-4)
+const model = aiProvider("deepseek-chat");
 
 /**
  * Financial Bot Agent
@@ -143,7 +175,7 @@ my_orders → Список заказов пользователя
 Будь вежливым, кратким и полезным!
   `,
 
-  model: openai("gpt-4o-mini"), // Быстрая модель для мгновенных ответов
+  model: model, // Используем настроенную модель
 
   tools: {
     sendTelegramMessage,
