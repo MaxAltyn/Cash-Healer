@@ -10,6 +10,9 @@ console.log('🚀 Starting Mastra server in production mode...');
 console.log(`📁 Working directory: ${process.cwd()}`);
 console.log(`🌍 NODE_ENV: ${process.env.NODE_ENV}`);
 console.log(`🔗 HOST_URL: ${process.env.HOST_URL || 'not set'}`);
+console.log(`🤖 TELEGRAM_BOT_TOKEN: ${process.env.TELEGRAM_BOT_TOKEN ? '✅ configured' : '❌ NOT SET - add in Railway Variables'}`);
+console.log(`🗄️  DATABASE_URL: ${process.env.DATABASE_URL ? '✅ configured' : '⚠️ not set'}`);
+console.log(`🚂 RAILWAY_PUBLIC_DOMAIN: ${process.env.RAILWAY_PUBLIC_DOMAIN || 'not set'}`);
 
 const mastraPath = path.join(__dirname, '.mastra', 'output', 'index.mjs');
 

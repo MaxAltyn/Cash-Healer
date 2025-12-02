@@ -2,11 +2,7 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 
 import { Mastra } from "@mastra/core";
 
-if (!process.env.TELEGRAM_BOT_TOKEN) {
-  console.warn(
-    "Trying to initialize Telegram triggers without TELEGRAM_BOT_TOKEN. Can you confirm that the Telegram integration is configured correctly?",
-  );
-}
+// Note: TELEGRAM_BOT_TOKEN check moved to runtime to allow server to start for healthchecks
 
 export type TriggerInfoTelegramMessage = {
   type: "telegram/message" | "telegram/callback_query" | "telegram/document";
@@ -44,6 +40,13 @@ export function registerTelegramTrigger({
       method: "POST" as const,
       createHandler: async ({ mastra }: { mastra: Mastra }) => async (c: any) => {
         const logger = mastra.getLogger();
+        
+        // Check for bot token at runtime
+        if (!process.env.TELEGRAM_BOT_TOKEN) {
+          logger?.warn("⚠️ [Telegram] TELEGRAM_BOT_TOKEN not configured, webhook disabled");
+          return c.json({ error: "Bot not configured" }, 503);
+        }
+        
         try {
           const payload = await c.req.json();
 

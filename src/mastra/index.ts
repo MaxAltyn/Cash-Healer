@@ -94,7 +94,7 @@ function getHostUrl(): string | null {
 async function setupTelegramWebhookOnStart() {
   const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
   if (!BOT_TOKEN) {
-    console.warn("⚠️ [Telegram] TELEGRAM_BOT_TOKEN not set, skipping webhook setup");
+    console.log("ℹ️ [Telegram] TELEGRAM_BOT_TOKEN not set - bot functionality disabled. Add this secret to enable Telegram bot.");
     return;
   }
 
