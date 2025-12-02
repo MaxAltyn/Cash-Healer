@@ -519,8 +519,6 @@ export const mastra = new Mastra({
                 expenses: expensesList,
                 wishes: wishesList,
               },
-              mastra,
-              runtimeContext: c as any,
             });
 
             if (!analysisResult.success) {
@@ -552,6 +550,7 @@ export const mastra = new Mastra({
             return c.json({
               success: true,
               analysis: analysisResult.analysis,
+              note: "Базовый анализ (AI временно недоступен)",
             });
           } catch (error: any) {
             logger?.error("❌ [Financial Modeling] Error", { error: error.message, stack: error.stack });
