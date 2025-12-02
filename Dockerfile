@@ -21,9 +21,7 @@ COPY --from=builder /app/.mastra ./.mastra
 COPY --from=builder /app/src ./src
 COPY --from=builder /app/shared ./shared
 COPY --from=builder /app/server ./server
-COPY --from=builder /app/drizzle ./drizzle
 COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
 COPY --from=builder /app/start.js ./start.js
 
