@@ -421,6 +421,9 @@ export const mastra = new Mastra({
       // ======================================================================
       // FINANCIAL MODELING MINI APP API
       // ======================================================================
+            // ======================================================================
+      // FINANCIAL MODELING MINI APP API
+      // ======================================================================
       {
         path: "/api/financial-modeling/save",
         method: "POST",
@@ -487,59 +490,7 @@ export const mastra = new Mastra({
             logger?.info("✅ [Financial Modeling] Model saved", { modelId: model.id });
 
             // Generate AI analysis with new structure
-           async function analyzeBudgetWithFallback(context: any, mastra: any, runtimeContext: any) {
-            try {
-              // Пробуем использовать DeepSeek если настроен
-              if (process.env.DEEPSEEK_API_KEY || process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
-                const { analyzeBudgetTool } = await import("./tools/budgetAnalysisTools");
-                const result = await analyzeBudgetTool.execute({
-                  context,
-                  mastra,
-                  runtimeContext,
-                });
-                
-                if (result.success) {
-                  return result;
-                }
-              }
-              
-              // Фолбэк: статический анализ без AI
-              const expensesList = context.expenses || [];
-              const wishesList = context.wishes || [];
-              const dailyBudget = context.dailyBudget || 0;
-              
-              const analysis = `## 📊 Анализ вашего бюджета
-          
-          **Текущий баланс:** ${context.currentBalance.toLocaleString('ru-RU')} ₽
-          **До следующего дохода:** ${context.daysUntilIncome} дней
-          **Ежедневный бюджет:** ${dailyBudget.toLocaleString('ru-RU')} ₽/день
-          
-          ### 💡 Основные выводы:
-          ${dailyBudget > 5000 ? '✅ Отличный дневной бюджет!' : dailyBudget > 2000 ? '📊 Хороший дневной бюджет' : '💡 Есть куда расти'}
-          
-          ### 🎯 Рекомендации:
-          1. **Отложите 10%** от остатка на непредвиденные расходы
-          2. **Приоритетные расходы:** оплата ЖКХ, кредиты, продукты
-          3. **Отложите покупки** с низким приоритетом
-          4. **Используйте ежедневный лимит** ${dailyBudget.toFixed(0)} ₽
-          
-          ### 📈 Для улучшения бюджета:
-          - Пересмотрите категории расходов
-          - Ищите способы дополнительного заработка
-          - Планируйте покупки заранее
-          
-          *Для более детального AI-анализа настройте API ключ в настройках.*`;
-              
-              return { success: true, analysis };
-              
-            } catch (error) {
-              // В случае ошибки возвращаем простой анализ
-              return {
-                success: true,
-                analysis: `📊 **Базовый анализ бюджета**\n\nВаш дневной бюджет: ${context.dailyBudget?.toFixed(0) || 0} ₽\n\n💡 Совет: старайтесь тратить не более этой суммы в день.`
-              };
-            }
-          }
+            const { analyzeBudgetTool } = await import("./tools/budgetAnalysisTools");
             
             const expensesList = (body.expenses || []).map((e: any) => 
               `${e.name}: ${e.amount}₽`
@@ -557,16 +508,45 @@ export const mastra = new Mastra({
             const afterExpenses = body.currentBalance - body.totalExpenses;
             const dailyBudget = Math.max(0, afterExpenses) / daysUntilIncome;
 
-            const analysisResult = await analyzeBudgetWithFallback({
-              currentBalance: body.currentBalance || 0,
-              daysUntilIncome,
-              dailyBudget,
-              expenses: expensesList,
-              wishes: wishesList,
-            }, mastra, c as any);
+            const analysisResult = await analyzeBudgetTool.execute({
+              context: {
+                currentBalance: body.currentBalance || 0,
+                nextIncome: body.nextIncome || 0,
+                daysUntilIncome,
+                totalExpenses: body.totalExpenses || 0,
+                afterExpenses,
+                dailyBudget,
+                expenses: expensesList,
+                wishes: wishesList,
+              },
+              mastra,
+              runtimeContext: c as any,
+            });
 
             if (!analysisResult.success) {
-              throw new Error(analysisResult.error || "Failed to generate analysis");
+              // Фолбэк: статический анализ без AI
+              const fallbackAnalysis = `## 📊 Базовый анализ бюджета
+
+                **Текущий баланс:** ${body.currentBalance.toLocaleString('ru-RU')} ₽
+                **До следующего дохода:** ${daysUntilIncome} дней
+                **Ежедневный бюджет:** ${dailyBudget.toLocaleString('ru-RU')} ₽/день
+                
+                ### 💡 Основные выводы:
+                ${dailyBudget > 5000 ? '✅ Отличный дневной бюджет!' : dailyBudget > 2000 ? '📊 Хороший дневной бюджет' : '💡 Есть куда расти'}
+                
+                ### 🎯 Рекомендации:
+                1. **Отложите 10%** от остатка на непредвиденные расходы
+                2. **Приоритетные расходы:** оплата ЖКХ, кредиты, продукты
+                3. **Отложите покупки** с низким приоритетом
+                4. **Используйте ежедневный лимит** ${dailyBudget.toFixed(0)} ₽
+                
+                *Для более детального AI-анализа настройте API ключ.*`;
+              
+              return c.json({
+                success: true,
+                analysis: fallbackAnalysis,
+                note: "AI анализ временно недоступен",
+              });
             }
 
             return c.json({
@@ -575,8 +555,16 @@ export const mastra = new Mastra({
             });
           } catch (error: any) {
             logger?.error("❌ [Financial Modeling] Error", { error: error.message, stack: error.stack });
+            
+            // Даже при ошибке возвращаем базовый анализ
+            const fallbackAnalysis = `📊 **Базовый анализ бюджета**\n\nЕжедневный бюджет: ${Math.round((body.currentBalance - body.totalExpenses) / 30) || 0} ₽\n\n💡 Совет: планируйте расходы в рамках дневного лимита.`;
+            
             return c.json(
-              { success: false, error: error.message },
+              { 
+                success: false, 
+                error: error.message,
+                analysis: fallbackAnalysis,
+              },
               500
             );
           }
