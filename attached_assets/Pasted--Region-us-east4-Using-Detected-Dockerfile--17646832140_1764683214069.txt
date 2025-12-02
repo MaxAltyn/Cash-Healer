@@ -1,0 +1,108 @@
+[Region: us-east4]
+=========================
+Using Detected Dockerfile
+=========================
+
+context: g511-6CtS
+
+internal
+load build definition from Dockerfile
+0ms
+
+internal
+load metadata for docker.io/library/node:20-alpine
+62ms
+
+internal
+load .dockerignore
+0ms
+
+internal
+load build context
+0ms
+
+base
+FROM docker.io/library/node:20-alpine@sha256:16858294071a56ffd4cce9f17b57136cc39e41507b40e245b4f8e906f7a19463
+8ms
+
+base
+WORKDIR /app cached
+0ms
+
+deps
+COPY package.json package-lock.json ./
+485ms
+
+deps
+RUN npm ci --ignore-scripts
+20s
+npm notice
+
+builder
+COPY --from=deps /app/node_modules ./node_modules
+6s
+
+builder
+COPY . .
+439ms
+
+builder
+RUN npm run build
+1m 39s
+npm notice
+
+runner
+COPY --from=builder /app/.mastra ./.mastra
+9s
+
+runner
+COPY --from=builder /app/src ./src
+964ms
+
+runner
+COPY --from=builder /app/shared ./shared
+57ms
+
+runner
+COPY --from=builder /app/server ./server
+71ms
+
+runner
+COPY --from=builder /app/package.json ./package.json
+120ms
+
+runner
+COPY --from=builder /app/tsconfig.json ./tsconfig.json
+80ms
+
+runner
+COPY --from=builder /app/start.js ./start.js
+70ms
+
+importing to docker
+35s
+
+auth
+sharing credentials for production-us-east4-eqdc4a.railway-registry.com
+0ms
+Build time: 228.53 seconds
+ 
+====================
+Starting Healthcheck
+====================
+Path: /api
+Retry window: 5m0s
+ 
+Attempt #1 failed with service unavailable. Continuing to retry for 4m49s
+Attempt #2 failed with service unavailable. Continuing to retry for 4m38s
+Attempt #3 failed with service unavailable. Continuing to retry for 4m26s
+Attempt #4 failed with service unavailable. Continuing to retry for 4m12s
+Attempt #5 failed with service unavailable. Continuing to retry for 3m54s
+Attempt #6 failed with service unavailable. Continuing to retry for 3m28s
+Attempt #7 failed with service unavailable. Continuing to retry for 2m48s
+Attempt #8 failed with service unavailable. Continuing to retry for 2m8s
+Attempt #9 failed with service unavailable. Continuing to retry for 1m28s
+Attempt #10 failed with service unavailable. Continuing to retry for 48s
+Attempt #11 failed with service unavailable. Continuing to retry for 8s
+ 
+1/1 replicas never became healthy!

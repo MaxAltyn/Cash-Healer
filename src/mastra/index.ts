@@ -203,6 +203,29 @@ export const mastra = new Mastra({
     ],
     apiRoutes: [
       // ======================================================================
+      // HEALTH CHECK ENDPOINT FOR RAILWAY/DEPLOYMENT
+      // ======================================================================
+      {
+        path: "/api",
+        method: "GET",
+        createHandler: async () => async (c) => {
+          return c.json({ 
+            status: "ok", 
+            timestamp: new Date().toISOString(),
+            telegram_configured: !!process.env.TELEGRAM_BOT_TOKEN,
+            database_configured: !!process.env.DATABASE_URL,
+          });
+        },
+      },
+      {
+        path: "/health",
+        method: "GET",
+        createHandler: async () => async (c) => {
+          return c.json({ status: "healthy", timestamp: new Date().toISOString() });
+        },
+      },
+
+      // ======================================================================
       // Inngest Integration Endpoint
       // ======================================================================
       // This API route is used to register the Mastra workflow (inngest function) on the inngest server
