@@ -1,5 +1,13 @@
 # Railway Deployment Instructions
 
+## Architecture
+
+This bot uses a **dual-mode architecture**:
+- **Development (Replit)**: Uses Inngest workflows for durable execution
+- **Production (Railway)**: Uses direct handler execution (no Inngest dependency)
+
+When `NODE_ENV=production`, the bot automatically uses `productionHandler.ts` which directly processes messages without Inngest.
+
 ## Step 1: Configure Environment Variables in Railway
 
 Open Railway Dashboard → Your Service → **Variables** tab and add:
@@ -8,6 +16,7 @@ Open Railway Dashboard → Your Service → **Variables** tab and add:
 
 | Variable | Value | Description |
 |----------|-------|-------------|
+| `NODE_ENV` | `production` | **Required** - Enables production mode |
 | `TELEGRAM_BOT_TOKEN` | `your_token` | Get from @BotFather in Telegram |
 | `HOST_URL` | `https://your-app.up.railway.app` | Your Railway public URL |
 
@@ -59,3 +68,6 @@ Either:
 1. Check webhook: `https://your-domain/api/telegram/setup-webhook`
 2. Verify token is valid in @BotFather
 3. Check Railway deployment logs
+
+### Inngest errors
+In production mode, Inngest is bypassed. Make sure `NODE_ENV=production` is set.
