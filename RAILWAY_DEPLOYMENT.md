@@ -1,60 +1,61 @@
 # Railway Deployment Instructions
 
-## Required Environment Variables
+## Step 1: Configure Environment Variables in Railway
 
-You must add these environment variables in Railway Dashboard > Variables:
+Open Railway Dashboard → Your Service → **Variables** tab and add:
 
-### Required for Telegram Bot (CRITICAL)
-```
-TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
-```
-Get this token from @BotFather in Telegram.
+### Required Variables
 
-### Required for Database
-```
-DATABASE_URL=your_postgresql_connection_string
-```
-You can use Railway's built-in PostgreSQL service or external database.
+| Variable | Value | Description |
+|----------|-------|-------------|
+| `TELEGRAM_BOT_TOKEN` | `your_token` | Get from @BotFather in Telegram |
+| `HOST_URL` | `https://your-app.up.railway.app` | Your Railway public URL |
 
-### Optional
-```
-YOOKASSA_SHOP_ID=your_shop_id
-YOOKASSA_SECRET_KEY=your_secret_key
-YOOKASSA_TEST_MODE=true
-YOOKASSA_MOCK_MODE=true
-```
+### Optional Variables
 
-## How to Add Variables in Railway
+| Variable | Value | Description |
+|----------|-------|-------------|
+| `DATABASE_URL` | `postgresql://...` | For database features |
+| `YOOKASSA_SHOP_ID` | `your_shop_id` | For payment processing |
+| `YOOKASSA_SECRET_KEY` | `your_key` | For payment processing |
+| `YOOKASSA_TEST_MODE` | `true` | Enable test mode |
+| `YOOKASSA_MOCK_MODE` | `true` | Enable mock mode |
 
-1. Open your Railway project
-2. Click on your service
-3. Go to "Variables" tab
-4. Click "New Variable" 
-5. Add each variable with its value
-6. Railway will automatically redeploy
+## Step 2: Enable Public Networking
 
-## Healthcheck Configuration
+1. Go to Railway Dashboard → Your Service → **Settings**
+2. Scroll to **Networking** section
+3. Click **Generate Domain**
+4. Copy the generated domain (e.g., `your-app.up.railway.app`)
+5. Use this domain as `HOST_URL` value (add `https://` prefix)
 
-Railway healthcheck is configured to check `/api` endpoint.
+## Step 3: Deploy
 
-If your deployment says "1/1 replicas never became healthy", check:
-1. TELEGRAM_BOT_TOKEN is set correctly
-2. DATABASE_URL is set if you need database features
+After adding variables and enabling networking, Railway will automatically redeploy.
 
-## After Deployment
+## Healthcheck
 
-Once deployed, the webhook will be automatically configured to use your Railway domain.
-The bot should start responding to messages immediately.
+The app provides these health endpoints:
+- `/api` - Returns `{"status":"ok"}`
+- `/health` - Returns `{"status":"healthy"}`
+
+## 24/7 Availability
+
+For guaranteed 24/7 uptime:
+- Use Railway **Starter** or higher plan (not Hobby/Free)
+- Set minimum replicas to 1 to prevent autosleep
 
 ## Troubleshooting
 
 ### "TELEGRAM_BOT_TOKEN not set"
 Add the token in Railway Variables tab.
 
-### "503 Service Unavailable"  
-The server starts but healthcheck fails - check logs for errors.
+### "No host URL found"
+Either:
+- Add `HOST_URL` variable manually, OR
+- Enable Public Networking to generate `RAILWAY_PUBLIC_DOMAIN`
 
 ### Bot doesn't respond
-1. Check that webhook is set: visit `https://your-railway-domain/api/telegram/setup-webhook`
-2. Verify token is valid
+1. Check webhook: `https://your-domain/api/telegram/setup-webhook`
+2. Verify token is valid in @BotFather
 3. Check Railway deployment logs
